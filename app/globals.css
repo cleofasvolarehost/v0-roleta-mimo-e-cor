@@ -1,7 +1,7 @@
 @import "tailwindcss";
-@import "tw-animate-css";
+/* Removido @import "tw-animate-css" que causava erro de sintaxe */
 
-@custom-variant dark (&:is(.dark *));
+/* removendo @custom-variant inválida que causava erro de sintaxe */
 
 :root {
   /* Updated to Mimo e Cor brand colors - vibrant magenta pink theme */
@@ -129,7 +129,9 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
+    font-family: Arial, Helvetica, sans-serif;
   }
 }
 
@@ -146,4 +148,14 @@
 
 .animate-pulse-slow {
   animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* adicionando classes utilitárias de layout e text-balance */
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-pretty {
+  text-wrap: pretty;
 }

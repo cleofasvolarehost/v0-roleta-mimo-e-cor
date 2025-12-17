@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { cookies, headers } from "next/headers"
+import { headers } from "next/headers"
 import { TENANT_ID } from "@/lib/config"
 
 async function getUserIP(): Promise<string> {
@@ -300,36 +300,20 @@ export async function adminLogin(username: string, password: string) {
   console.log("[v0] adminLogin chamado com username:", username)
 
   if (username === "superadmin" && password === "malucobeleza") {
-    console.log("[v0] Credenciais corretas, criando sessão")
-
-    const cookieStore = await cookies()
-    cookieStore.set("admin_session", "authenticated", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24, // 24 horas
-      path: "/",
-    })
-
-    console.log("[v0] Cookie de sessão criado")
-    return { success: true }
+    console.log("[v0] Credenciais corretas")
+    return { success: true, token: "authenticated" }
   }
 
   console.log("[v0] Credenciais inválidas")
   return { error: "Usuário ou senha inválidos" }
 }
 
-export async function checkAdminAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get("admin_session")
-
-  console.log("[v0] checkAdminAuth - session:", session?.value)
-  return { isAuthenticated: session?.value === "authenticated" }
+export async function checkAdminAuth(token?: string) {
+  console.log("[v0] checkAdminAuth - token:", token)
+  return { isAuthenticated: token === "authenticated" }
 }
 
 export async function adminLogout() {
-  const cookieStore = await cookies()
-  cookieStore.delete("admin_session")
-
   return { success: true }
 }
 

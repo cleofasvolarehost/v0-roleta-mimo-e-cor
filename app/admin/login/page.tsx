@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { adminLogin } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,22 +17,39 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  useEffect(() => {
+    const token = localStorage.getItem("admin_token")
+    if (token === "authenticated") {
+      router.push("/admin")
+    }
+  }, [router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
 
+    console.log("[v0] Tentando login com username:", username)
+
     try {
-      await adminLogin(username, password)
-      // If we get here, credentials were wrong (no redirect happened)
-      setError("Usuário ou senha inválidos")
-      setLoading(false)
-    } catch (error: any) {
-      if (!error?.message?.includes("NEXT_REDIRECT")) {
-        console.error("[v0] Login error:", error)
-        setError("Erro ao fazer login. Tente novamente.")
+      const result = await adminLogin(username, password)
+
+      if (result.success && result.token) {
+        console.log("[v0] Login bem-sucedido, salvando token no localStorage")
+        localStorage.setItem("admin_token", result.token)
+        router.push("/admin")
+        return
+      }
+
+      if (result.error) {
+        console.log("[v0] Erro no login:", result.error)
+        setError(result.error)
         setLoading(false)
       }
+    } catch (err: any) {
+      console.log("[v0] Erro no login:", err)
+      setError(err?.message || "Erro ao fazer login")
+      setLoading(false)
     }
   }
 
