@@ -35,7 +35,9 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
 
   const getAuthToken = () => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("admin_session") || undefined
+      const token = localStorage.getItem("admin_session") || undefined
+      console.log("[v0] getAuthToken retornando:", token)
+      return token
     }
     return undefined
   }
@@ -44,6 +46,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     console.log("[v0] Botão ativar clicado")
     setLoading(true)
     const token = getAuthToken()
+    console.log("[v0] Token sendo enviado para activateCampaign:", token)
     const result = await activateCampaign(token)
     console.log("[v0] Resultado da ativação:", result)
 
@@ -326,7 +329,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
                       size="lg"
                       onClick={handleDrawWinner}
                       disabled={loading}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold gap-2 w-full md:w-auto"
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white gap-2 font-bold w-full md:w-auto"
                     >
                       <Trophy className="w-5 h-5" />
                       Sortear Ganhador
