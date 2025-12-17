@@ -7,8 +7,8 @@ import {
   adminLogout,
   drawWinner,
   clearParticipants,
-  exportParticipantsCSV,
   deleteParticipant, // Import da nova função
+  exportParticipantsCSV, // Import da função exportParticipantsCSV
 } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,12 +30,21 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
   const [stats, setStats] = useState(initialStats)
   const [spins, setSpins] = useState(initialSpins)
   const [loading, setLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const router = useRouter()
+
+  const getAuthToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("admin_session") || undefined
+    }
+    return undefined
+  }
 
   const handleActivate = async () => {
     console.log("[v0] Botão ativar clicado")
     setLoading(true)
-    const result = await activateCampaign()
+    const token = getAuthToken()
+    const result = await activateCampaign(token)
     console.log("[v0] Resultado da ativação:", result)
 
     if (result.error) {
@@ -68,7 +77,8 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     )
 
     setLoading(true)
-    const result = await deactivateCampaignWithCleanup(shouldClear)
+    const token = getAuthToken()
+    const result = await deactivateCampaignWithCleanup(shouldClear, token)
     console.log("[v0] Resultado da desativação:", result)
 
     if (result.error) {
@@ -118,7 +128,8 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     if (!confirm) return
 
     setLoading(true)
-    const result = await drawWinner(stats.campaign.id)
+    const token = getAuthToken()
+    const result = await drawWinner(stats.campaign.id, token)
 
     if (result.error) {
       alert("Erro ao sortear: " + result.error)
@@ -142,7 +153,8 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     if (!doubleConfirm) return
 
     setLoading(true)
-    const result = await clearParticipants()
+    const token = getAuthToken()
+    const result = await clearParticipants(token)
 
     if (result.error) {
       alert("Erro ao limpar banco de dados: " + result.error)
@@ -161,7 +173,8 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     }
 
     setLoading(true)
-    const result = await exportParticipantsCSV(stats.campaign?.id)
+    const token = getAuthToken()
+    const result = await exportParticipantsCSV(stats.campaign?.id, token)
 
     if (result.error) {
       alert("Erro ao exportar: " + result.error)
@@ -197,7 +210,9 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     if (!confirm) return
 
     setLoading(true)
-    const result = await deleteParticipant(playerId)
+    setDeletingId(playerId)
+    const token = getAuthToken()
+    const result = await deleteParticipant(playerId, token)
 
     if (result.error) {
       alert("Erro ao remover participante: " + result.error)
@@ -501,7 +516,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDeleteParticipant(spin.players.id, spin.players.name)}
-                          disabled={loading}
+                          disabled={loading || deletingId === spin.players.id}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                           title="Remover participante"
                         >

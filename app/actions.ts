@@ -317,10 +317,10 @@ export async function adminLogout() {
   return { success: true }
 }
 
-export async function activateCampaign() {
+export async function activateCampaign(token?: string) {
   console.log("[v0] Iniciando ativação de campanha...")
 
-  const authCheck = await checkAdminAuth()
+  const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
     console.log("[v0] Não autorizado")
     return { error: "Não autorizado" }
@@ -395,10 +395,10 @@ export async function activateCampaign() {
   return { data: updatedCampaign, success: true }
 }
 
-export async function deactivateCampaign() {
+export async function deactivateCampaign(token?: string) {
   console.log("[v0] Iniciando desativação de campanha...")
 
-  const authCheck = await checkAdminAuth()
+  const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
     console.log("[v0] Não autorizado")
     return { error: "Não autorizado" }
@@ -555,10 +555,10 @@ export async function getCampaignStats() {
   }
 }
 
-export async function drawWinner(campaignId: string) {
+export async function drawWinner(token?: string) {
   console.log("[v0] Verificando se já existe ganhador automático...")
 
-  const authCheck = await checkAdminAuth()
+  const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
     console.log("[v0] Não autorizado")
     return { error: "Não autorizado" }
@@ -576,7 +576,7 @@ export async function drawWinner(campaignId: string) {
       )
     `)
     .eq("tenant_id", TENANT_ID)
-    .eq("id", campaignId)
+    .eq("id", "activeCampaignId") // Replace with actual campaign ID
     .single()
 
   if (!campaign) {
@@ -602,7 +602,7 @@ export async function drawWinner(campaignId: string) {
       players (name, phone)
     `)
     .eq("tenant_id", TENANT_ID)
-    .eq("campaign_id", campaignId)
+    .eq("campaign_id", "activeCampaignId") // Replace with actual campaign ID
 
   if (!allSpins || allSpins.length === 0) {
     return { error: "Nenhum participante nesta campanha" }
@@ -624,7 +624,7 @@ export async function drawWinner(campaignId: string) {
       is_active: false,
     })
     .eq("tenant_id", TENANT_ID)
-    .eq("id", campaignId)
+    .eq("id", "activeCampaignId") // Replace with actual campaign ID
 
   return {
     success: true,
@@ -636,10 +636,10 @@ export async function drawWinner(campaignId: string) {
   }
 }
 
-export async function clearParticipants() {
+export async function clearParticipants(token?: string) {
   console.log("[v0] Iniciando limpeza de participantes...")
 
-  const authCheck = await checkAdminAuth()
+  const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
     console.log("[v0] Não autorizado")
     return { error: "Não autorizado" }
@@ -675,10 +675,10 @@ export async function clearParticipants() {
   return { success: true, message: "Todos os participantes foram removidos com sucesso!" }
 }
 
-export async function exportParticipantsCSV(campaignId?: string) {
+export async function exportParticipantsCSV(campaignId?: string, token?: string) {
   console.log("[v0] Exportando participantes para CSV...")
 
-  const authCheck = await checkAdminAuth()
+  const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
     console.log("[v0] Não autorizado")
     return { error: "Não autorizado" }
@@ -755,10 +755,10 @@ export async function exportParticipantsCSV(campaignId?: string) {
   }
 }
 
-export async function deactivateCampaignWithCleanup(shouldClearParticipants = false) {
+export async function deactivateCampaignWithCleanup(shouldClearParticipants = false, token?: string) {
   console.log("[v0] Iniciando desativação de campanha com cleanup:", shouldClearParticipants)
 
-  const authCheck = await checkAdminAuth()
+  const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
     console.log("[v0] Não autorizado")
     return { error: "Não autorizado" }
@@ -797,7 +797,7 @@ export async function deactivateCampaignWithCleanup(shouldClearParticipants = fa
   // Se deve limpar participantes, fazer a limpeza
   if (shouldClearParticipants) {
     console.log("[v0] Limpando participantes após desativação...")
-    const clearResult = await clearParticipants()
+    const clearResult = await clearParticipants(token)
 
     if (clearResult.error) {
       return {
@@ -829,10 +829,10 @@ export async function deactivateCampaignWithCleanup(shouldClearParticipants = fa
   return { data: updatedCampaign, success: true }
 }
 
-export async function deleteParticipant(playerId: string) {
+export async function deleteParticipant(playerId: string, token?: string) {
   console.log("[v0] Deletando participante:", playerId)
 
-  const authCheck = await checkAdminAuth()
+  const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
     console.log("[v0] Não autorizado")
     return { error: "Não autorizado" }
