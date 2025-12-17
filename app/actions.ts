@@ -1,0 +1,872 @@
+"use server"
+
+import { createClient } from "@/lib/supabase/server"
+import { cookies, headers } from "next/headers"
+import { TENANT_ID } from "@/lib/config"
+
+async function getUserIP(): Promise<string> {
+  const headersList = await headers()
+  const forwardedFor = headersList.get("x-forwarded-for")
+  const realIp = headersList.get("x-real-ip")
+
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim()
+  }
+
+  if (realIp) {
+    return realIp
+  }
+
+  return "unknown"
+}
+
+async function getUserAgent(): Promise<string> {
+  const headersList = await headers()
+  return headersList.get("user-agent") || "unknown"
+}
+
+export async function registerPlayer(formData: {
+  name: string
+  phone: string
+  deviceFingerprint?: string
+}) {
+  const supabase = await createClient()
+  const ipAddress = await getUserIP()
+  const userAgent = await getUserAgent()
+
+  console.log("[v0] Registrando jogador - Nome:", formData.name, "Telefone:", formData.phone)
+
+  const { data: existingByPhone } = await supabase
+    .from("players")
+    .select("*, spins(*)")
+    .eq("tenant_id", TENANT_ID)
+    .eq("phone", formData.phone)
+    .single()
+
+  if (existingByPhone) {
+    // Se o telefone existe mas NÃO tem giros (cadastro incompleto)
+    if (!existingByPhone.spins || existingByPhone.spins.length === 0) {
+      console.log("[v0] Cadastro incompleto encontrado, deletando registro anterior")
+
+      // Deletar o cadastro incompleto para permitir novo registro
+      const { error: deleteError } = await supabase
+        .from("players")
+        .delete()
+        .eq("id", existingByPhone.id)
+        .eq("tenant_id", TENANT_ID)
+
+      if (deleteError) {
+        console.error("[v0] Erro ao deletar cadastro incompleto:", deleteError)
+      } else {
+        console.log("[v0] Cadastro incompleto deletado, permitindo novo registro")
+      }
+    } else {
+      // Se já tem giros, não permitir novo cadastro
+      console.log("[v0] Telefone já cadastrado e com giros realizados")
+      return { error: "Este telefone já está cadastrado e já participou do sorteio!" }
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("players")
+    .insert({
+      tenant_id: TENANT_ID,
+      name: formData.name,
+      phone: formData.phone,
+      email: null,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      device_fingerprint: formData.deviceFingerprint || null,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    let errorMessage = error.message
+
+    if (error.code === "23505" && error.message.includes("phone")) {
+      errorMessage = "Este telefone já está cadastrado! Cada pessoa pode participar apenas uma vez."
+    } else if (error.code === "23502") {
+      errorMessage = "Por favor, preencha todos os campos obrigatórios."
+    } else if (errorMessage.includes("violates")) {
+      errorMessage = "Os dados fornecidos violam as regras do sistema."
+    }
+
+    console.error("[v0] Erro ao registrar jogador:", error)
+    return { error: errorMessage }
+  }
+
+  console.log("[v0] Jogador registrado com sucesso:", data?.id)
+  return { data }
+}
+
+export async function getPrizes() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("prizes")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("is_active", true)
+    .order("probability", { ascending: false })
+
+  if (error) {
+    let errorMessage = "Erro ao carregar os prêmios."
+
+    if (error.message.includes("permission denied")) {
+      errorMessage = "Sem permissão para visualizar os prêmios."
+    } else if (error.message.includes("not found")) {
+      errorMessage = "Nenhum prêmio disponível no momento."
+    }
+
+    return { error: errorMessage }
+  }
+
+  return { data }
+}
+
+export async function recordSpin(playerId: string, prizeId: string, deviceFingerprint?: string) {
+  const supabase = await createClient()
+  const ipAddress = await getUserIP()
+  const userAgent = await getUserAgent()
+
+  console.log("[v0] Registrando giro - Player ID:", playerId)
+
+  const campaignResult = await getActiveCampaign()
+  if (!campaignResult.data) {
+    return { error: "Nenhuma campanha ativa no momento." }
+  }
+
+  const campaign = campaignResult.data
+
+  const { data: existingWinner } = await supabase
+    .from("campaigns")
+    .select("winner_id")
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", campaign.id)
+    .single()
+
+  let isWinner = false
+
+  if (!existingWinner?.winner_id) {
+    isWinner = Math.random() < 0.02
+
+    console.log("[v0] Ainda não tem ganhador. Esta pessoa ganhou?", isWinner)
+  } else {
+    console.log("[v0] Já tem ganhador na campanha. Esta pessoa não pode ganhar.")
+  }
+
+  const { data: spinData, error } = await supabase
+    .from("spins")
+    .insert({
+      tenant_id: TENANT_ID,
+      player_id: playerId,
+      prize_id: prizeId,
+      campaign_id: campaign.id,
+      is_winner: isWinner,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      device_fingerprint: deviceFingerprint || null,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    let errorMessage = "Erro ao registrar o giro."
+
+    if (error.code === "23505" || error.message.includes("duplicate") || error.message.includes("unique")) {
+      errorMessage = "Você já girou a roleta nesta campanha!"
+    } else if (error.code === "23503") {
+      errorMessage = "Jogador ou prêmio inválido."
+    } else if (error.message.includes("permission denied")) {
+      errorMessage = "Sem permissão para registrar o giro."
+    }
+
+    return { error: errorMessage }
+  }
+
+  if (isWinner && spinData) {
+    console.log("[v0] TEMOS UM GANHADOR! Atualizando campanha...")
+
+    await supabase.from("campaigns").update({ winner_id: spinData.id }).eq("tenant_id", TENANT_ID).eq("id", campaign.id)
+  }
+
+  return { data: spinData, isWinner }
+}
+
+export async function getSpinHistory(limit = 10) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("spins")
+    .select(`
+      id,
+      spun_at,
+      is_winner,
+      players (id, name, phone),
+      prizes (name, description, color, icon)
+    `)
+    .eq("tenant_id", TENANT_ID)
+    .order("spun_at", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    let errorMessage = "Erro ao carregar o histórico."
+
+    if (error.message.includes("permission denied")) {
+      errorMessage = "Sem permissão para visualizar o histórico."
+    } else if (error.message.includes("not found")) {
+      errorMessage = "Nenhum histórico disponível."
+    }
+
+    return { error: errorMessage }
+  }
+
+  return { data }
+}
+
+export async function getSpinHistoryOld(limit = 10) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("spins")
+    .select(`
+      id,
+      spun_at,
+      is_winner,
+      players (name, email),
+      prizes (name, description, color, icon)
+    `)
+    .eq("tenant_id", TENANT_ID)
+    .order("spun_at", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    let errorMessage = "Erro ao carregar o histórico."
+
+    if (error.message.includes("permission denied")) {
+      errorMessage = "Sem permissão para visualizar o histórico."
+    } else if (error.message.includes("not found")) {
+      errorMessage = "Nenhum histórico disponível."
+    }
+
+    return { error: errorMessage }
+  }
+
+  return { data }
+}
+
+export async function getActiveCampaign() {
+  const supabase = await createClient()
+
+  console.log("[v0] Buscando campanha ativa...")
+
+  const { data, error } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+
+  console.log("[v0] Resultado da busca:", { data, error })
+
+  if (error) {
+    console.log("[v0] Erro ao buscar campanha:", error)
+    return { data: null, error: error.message }
+  }
+
+  if (!data || data.length === 0) {
+    console.log("[v0] Nenhuma campanha ativa encontrada")
+    return { data: null, error: "Nenhuma campanha ativa" }
+  }
+
+  const campaign = data[0]
+  console.log("[v0] Campanha encontrada:", campaign)
+
+  if (campaign.ends_at && new Date(campaign.ends_at) < new Date()) {
+    console.log("[v0] Campanha expirada")
+
+    await supabase.from("campaigns").update({ is_active: false }).eq("tenant_id", TENANT_ID).eq("id", campaign.id)
+
+    return { data: null, error: "Campanha expirada" }
+  }
+
+  console.log("[v0] Campanha ativa válida retornada")
+  return { data: campaign }
+}
+
+export async function adminLogin(username: string, password: string) {
+  if (username === "superadmin" && password === "malucobeleza") {
+    const cookieStore = await cookies()
+    cookieStore.set("admin_session", "authenticated", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24, // 24 horas
+      path: "/",
+    })
+
+    return { success: true }
+  }
+
+  return { error: "Usuário ou senha inválidos" }
+}
+
+export async function checkAdminAuth() {
+  const cookieStore = await cookies()
+  const session = cookieStore.get("admin_session")
+
+  return { isAuthenticated: session?.value === "authenticated" }
+}
+
+export async function adminLogout() {
+  const cookieStore = await cookies()
+  cookieStore.delete("admin_session")
+
+  return { success: true }
+}
+
+export async function activateCampaign() {
+  console.log("[v0] Iniciando ativação de campanha...")
+
+  const authCheck = await checkAdminAuth()
+  if (!authCheck.isAuthenticated) {
+    console.log("[v0] Não autorizado")
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  const { data: existingCampaigns } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .order("created_at", { ascending: false })
+    .limit(1)
+
+  let campaignId: string
+
+  if (!existingCampaigns || existingCampaigns.length === 0) {
+    console.log("[v0] Criando nova campanha...")
+    const { data: newCampaign, error: createError } = await supabase
+      .from("campaigns")
+      .insert({
+        tenant_id: TENANT_ID,
+        name: "Campanha Roleta Mimo e Cor",
+      })
+      .select()
+      .single()
+
+    if (createError || !newCampaign) {
+      console.log("[v0] Erro ao criar campanha:", createError)
+      return { error: "Erro ao criar campanha: " + (createError?.message || "Desconhecido") }
+    }
+
+    campaignId = newCampaign.id
+  } else {
+    campaignId = existingCampaigns[0].id
+  }
+
+  console.log("[v0] Ativando campanha ID:", campaignId)
+
+  const now = new Date()
+  const endsAt = new Date(now.getTime() + 60 * 60 * 1000) // +1 hora
+
+  const { error: updateError } = await supabase
+    .from("campaigns")
+    .update({
+      is_active: true,
+      started_at: now.toISOString(),
+      ends_at: endsAt.toISOString(),
+      winner_id: null,
+    })
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", campaignId)
+
+  if (updateError) {
+    console.log("[v0] Erro ao ativar campanha:", updateError)
+    return { error: "Erro ao ativar campanha: " + updateError.message }
+  }
+
+  const { data: updatedCampaign, error: selectError } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", campaignId)
+    .single()
+
+  if (selectError) {
+    console.log("[v0] Erro ao buscar campanha atualizada:", selectError)
+    return { success: true, message: "Campanha ativada (dados não puderam ser recuperados)" }
+  }
+
+  console.log("[v0] Campanha ativada com sucesso:", updatedCampaign)
+  return { data: updatedCampaign, success: true }
+}
+
+export async function deactivateCampaign() {
+  console.log("[v0] Iniciando desativação de campanha...")
+
+  const authCheck = await checkAdminAuth()
+  if (!authCheck.isAuthenticated) {
+    console.log("[v0] Não autorizado")
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  const { data: activeCampaigns } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+
+  if (!activeCampaigns || activeCampaigns.length === 0) {
+    console.log("[v0] Nenhuma campanha ativa encontrada")
+    return { error: "Nenhuma campanha ativa para desativar" }
+  }
+
+  const activeCampaign = activeCampaigns[0]
+  console.log("[v0] Desativando campanha ID:", activeCampaign.id)
+
+  const { error: updateError } = await supabase
+    .from("campaigns")
+    .update({ is_active: false })
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", activeCampaign.id)
+
+  if (updateError) {
+    console.log("[v0] Erro ao desativar:", updateError)
+    return { error: "Erro ao desativar campanha: " + updateError.message }
+  }
+
+  const { data: updatedCampaign, error: selectError } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", activeCampaign.id)
+    .single()
+
+  if (selectError) {
+    console.log("[v0] Erro ao buscar dados atualizados, mas campanha foi desativada")
+    return { success: true, message: "Campanha desativada com sucesso" }
+  }
+
+  console.log("[v0] Campanha desativada com sucesso:", updatedCampaign)
+  return { data: updatedCampaign, success: true }
+}
+
+export async function getAllWinners() {
+  const supabase = await createClient()
+
+  const { data: campaigns } = await supabase
+    .from("campaigns")
+    .select(
+      `
+      id,
+      name,
+      started_at,
+      ends_at,
+      is_active
+    `,
+    )
+    .eq("tenant_id", TENANT_ID)
+    .order("started_at", { ascending: false })
+
+  if (!campaigns) return []
+
+  const winnersData = await Promise.all(
+    campaigns.map(async (campaign) => {
+      const { data: winner } = await supabase
+        .from("spins")
+        .select(
+          `
+          *,
+          players (name, phone),
+          prizes (name)
+        `,
+        )
+        .eq("tenant_id", TENANT_ID)
+        .eq("campaign_id", campaign.id)
+        .eq("is_winner", true)
+        .maybeSingle()
+
+      const { count: totalParticipants } = await supabase
+        .from("spins")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", TENANT_ID)
+        .eq("campaign_id", campaign.id)
+
+      return {
+        campaign,
+        winner,
+        totalParticipants: totalParticipants || 0,
+      }
+    }),
+  )
+
+  return winnersData.filter((data) => data.winner !== null)
+}
+
+export async function getCampaignStats() {
+  const supabase = await createClient()
+
+  // Buscar última campanha com ganhador (ativa ou não)
+  const { data: campaigns } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .order("started_at", { ascending: false })
+
+  let campaign = null
+  let winner = null
+
+  for (const c of campaigns || []) {
+    const { data: w } = await supabase
+      .from("spins")
+      .select(
+        `
+        *,
+        players (name, phone),
+        prizes (name)
+      `,
+      )
+      .eq("tenant_id", TENANT_ID)
+      .eq("campaign_id", c.id)
+      .eq("is_winner", true)
+      .maybeSingle()
+
+    if (w) {
+      campaign = c
+      winner = w
+      break
+    }
+  }
+
+  const { count: totalSpins } = await supabase
+    .from("spins")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", TENANT_ID)
+    .eq("campaign_id", campaign?.id || "")
+
+  return {
+    campaign,
+    totalSpins: totalSpins || 0,
+    winner,
+  }
+}
+
+export async function drawWinner(campaignId: string) {
+  console.log("[v0] Verificando se já existe ganhador automático...")
+
+  const authCheck = await checkAdminAuth()
+  if (!authCheck.isAuthenticated) {
+    console.log("[v0] Não autorizado")
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select(`
+      *,
+      spins!campaigns_winner_id_fkey (
+        id,
+        players (name, phone)
+      )
+    `)
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", campaignId)
+    .single()
+
+  if (!campaign) {
+    return { error: "Campanha não encontrada" }
+  }
+
+  if (campaign.winner_id) {
+    return {
+      success: true,
+      alreadyWon: true,
+      winner: {
+        name: campaign.spins?.players?.name,
+        phone: campaign.spins?.players?.phone,
+        spinId: campaign.winner_id,
+      },
+    }
+  }
+
+  const { data: allSpins } = await supabase
+    .from("spins")
+    .select(`
+      *,
+      players (name, phone)
+    `)
+    .eq("tenant_id", TENANT_ID)
+    .eq("campaign_id", campaignId)
+
+  if (!allSpins || allSpins.length === 0) {
+    return { error: "Nenhum participante nesta campanha" }
+  }
+
+  console.log("[v0] Nenhum ganhador automático. Sorteando entre", allSpins.length, "participantes")
+
+  const randomIndex = Math.floor(Math.random() * allSpins.length)
+  const winnerSpin = allSpins[randomIndex]
+
+  console.log("[v0] Ganhador sorteado manualmente:", winnerSpin)
+
+  await supabase.from("spins").update({ is_winner: true }).eq("tenant_id", TENANT_ID).eq("id", winnerSpin.id)
+
+  await supabase
+    .from("campaigns")
+    .update({
+      winner_id: winnerSpin.id,
+      is_active: false,
+    })
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", campaignId)
+
+  return {
+    success: true,
+    winner: {
+      name: winnerSpin.players?.name,
+      phone: winnerSpin.players?.phone,
+      spinId: winnerSpin.id,
+    },
+  }
+}
+
+export async function clearParticipants() {
+  console.log("[v0] Iniciando limpeza de participantes...")
+
+  const authCheck = await checkAdminAuth()
+  if (!authCheck.isAuthenticated) {
+    console.log("[v0] Não autorizado")
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  const { error: deleteSpinsError } = await supabase
+    .from("spins")
+    .delete()
+    .eq("tenant_id", TENANT_ID)
+    .neq("id", "00000000-0000-0000-0000-000000000000")
+
+  if (deleteSpinsError) {
+    console.log("[v0] Erro ao deletar spins:", deleteSpinsError)
+    return { error: "Erro ao limpar giros: " + deleteSpinsError.message }
+  }
+
+  const { error: deletePlayersError } = await supabase
+    .from("players")
+    .delete()
+    .eq("tenant_id", TENANT_ID)
+    .neq("id", "00000000-0000-0000-0000-000000000000")
+
+  if (deletePlayersError) {
+    console.log("[v0] Erro ao deletar jogadores:", deletePlayersError)
+    return { error: "Erro ao limpar jogadores: " + deletePlayersError.message }
+  }
+
+  await supabase.from("campaigns").update({ winner_id: null }).eq("tenant_id", TENANT_ID).eq("is_active", true)
+
+  console.log("[v0] Banco de dados limpo com sucesso!")
+  return { success: true, message: "Todos os participantes foram removidos com sucesso!" }
+}
+
+export async function exportParticipantsCSV(campaignId?: string) {
+  console.log("[v0] Exportando participantes para CSV...")
+
+  const authCheck = await checkAdminAuth()
+  if (!authCheck.isAuthenticated) {
+    console.log("[v0] Não autorizado")
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  // Se campaignId não for fornecido, pegar a campanha mais recente
+  let targetCampaignId = campaignId
+
+  if (!targetCampaignId) {
+    const { data: latestCampaign } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("tenant_id", TENANT_ID)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!latestCampaign) {
+      return { error: "Nenhuma campanha encontrada" }
+    }
+
+    targetCampaignId = latestCampaign.id
+  }
+
+  // Buscar todos os participantes da campanha
+  const { data: spins, error } = await supabase
+    .from("spins")
+    .select(
+      `
+      spun_at,
+      is_winner,
+      players (
+        name,
+        phone
+      )
+    `,
+    )
+    .eq("tenant_id", TENANT_ID)
+    .eq("campaign_id", targetCampaignId)
+    .order("spun_at", { ascending: false })
+
+  if (error) {
+    console.log("[v0] Erro ao buscar participantes:", error)
+    return { error: "Erro ao buscar participantes: " + error.message }
+  }
+
+  if (!spins || spins.length === 0) {
+    return { error: "Nenhum participante nesta campanha" }
+  }
+
+  // Criar CSV
+  const csvHeader = "Nome,Telefone,Data/Hora,Ganhou\n"
+  const csvRows = spins
+    .map((spin: any) => {
+      const name = spin.players?.name || "N/A"
+      const phone = spin.players?.phone || "N/A"
+      const date = new Date(spin.spun_at).toLocaleString("pt-BR")
+      const won = spin.is_winner ? "Sim" : "Não"
+
+      return `"${name}","${phone}","${date}","${won}"`
+    })
+    .join("\n")
+
+  const csvContent = csvHeader + csvRows
+
+  console.log("[v0] CSV gerado com", spins.length, "participantes")
+
+  return {
+    success: true,
+    csv: csvContent,
+    totalParticipants: spins.length,
+  }
+}
+
+export async function deactivateCampaignWithCleanup(shouldClearParticipants = false) {
+  console.log("[v0] Iniciando desativação de campanha com cleanup:", shouldClearParticipants)
+
+  const authCheck = await checkAdminAuth()
+  if (!authCheck.isAuthenticated) {
+    console.log("[v0] Não autorizado")
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  const { data: activeCampaigns } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+
+  if (!activeCampaigns || activeCampaigns.length === 0) {
+    console.log("[v0] Nenhuma campanha ativa encontrada")
+    return { error: "Nenhuma campanha ativa para desativar" }
+  }
+
+  const activeCampaign = activeCampaigns[0]
+  console.log("[v0] Desativando campanha ID:", activeCampaign.id)
+
+  // Desativar campanha
+  const { error: updateError } = await supabase
+    .from("campaigns")
+    .update({ is_active: false })
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", activeCampaign.id)
+
+  if (updateError) {
+    console.log("[v0] Erro ao desativar:", updateError)
+    return { error: "Erro ao desativar campanha: " + updateError.message }
+  }
+
+  // Se deve limpar participantes, fazer a limpeza
+  if (shouldClearParticipants) {
+    console.log("[v0] Limpando participantes após desativação...")
+    const clearResult = await clearParticipants()
+
+    if (clearResult.error) {
+      return {
+        success: true,
+        message: "Campanha desativada, mas houve erro ao limpar participantes: " + clearResult.error,
+      }
+    }
+
+    return {
+      success: true,
+      message: "Campanha desativada e participantes limpos com sucesso!",
+      cleared: true,
+    }
+  }
+
+  const { data: updatedCampaign, error: selectError } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", activeCampaign.id)
+    .single()
+
+  if (selectError) {
+    console.log("[v0] Erro ao buscar dados atualizados, mas campanha foi desativada")
+    return { success: true, message: "Campanha desativada com sucesso" }
+  }
+
+  console.log("[v0] Campanha desativada com sucesso:", updatedCampaign)
+  return { data: updatedCampaign, success: true }
+}
+
+export async function deleteParticipant(playerId: string) {
+  console.log("[v0] Deletando participante:", playerId)
+
+  const authCheck = await checkAdminAuth()
+  if (!authCheck.isAuthenticated) {
+    console.log("[v0] Não autorizado")
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  // Deletar os spins do participante primeiro
+  const { error: deleteSpinsError } = await supabase
+    .from("spins")
+    .delete()
+    .eq("player_id", playerId)
+    .eq("tenant_id", TENANT_ID)
+
+  if (deleteSpinsError) {
+    console.log("[v0] Erro ao deletar spins:", deleteSpinsError)
+    return { error: "Erro ao deletar giros: " + deleteSpinsError.message }
+  }
+
+  // Deletar o participante
+  const { error: deletePlayerError } = await supabase
+    .from("players")
+    .delete()
+    .eq("id", playerId)
+    .eq("tenant_id", TENANT_ID)
+
+  if (deletePlayerError) {
+    console.log("[v0] Erro ao deletar participante:", deletePlayerError)
+    return { error: "Erro ao deletar participante: " + deletePlayerError.message }
+  }
+
+  console.log("[v0] Participante deletado com sucesso!")
+  return { success: true, message: "Participante removido com sucesso!" }
+}
