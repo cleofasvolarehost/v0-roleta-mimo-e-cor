@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { cookies, headers } from "next/headers"
 import { TENANT_ID } from "@/lib/config"
+import { redirect } from "next/navigation"
 
 async function getUserIP(): Promise<string> {
   const headersList = await headers()
@@ -297,19 +298,24 @@ export async function getActiveCampaign() {
 }
 
 export async function adminLogin(username: string, password: string) {
+  console.log("[v0] adminLogin chamado com username:", username)
+
   if (username === "superadmin" && password === "malucobeleza") {
+    console.log("[v0] Credenciais corretas, criando sessão")
+
     const cookieStore = await cookies()
     cookieStore.set("admin_session", "authenticated", {
       httpOnly: true,
-      secure: true, // Necessário para SameSite=None (compatível com iframes/preview)
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24, // 24 horas
       path: "/",
     })
 
-    return { success: true }
+    console.log("[v0] Cookie de sessão criado")
+    redirect("/admin")
   }
 
+  console.log("[v0] Credenciais inválidas")
   return { error: "Usuário ou senha inválidos" }
 }
 
@@ -317,6 +323,7 @@ export async function checkAdminAuth() {
   const cookieStore = await cookies()
   const session = cookieStore.get("admin_session")
 
+  console.log("[v0] checkAdminAuth - session:", session?.value)
   return { isAuthenticated: session?.value === "authenticated" }
 }
 
@@ -546,15 +553,21 @@ export async function getCampaignStats() {
     }
   }
 
-  const { count: totalSpins } = await supabase
-    .from("spins")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", TENANT_ID)
-    .eq("campaign_id", campaign?.id || "")
+  let totalSpins = 0
+
+  if (campaign?.id) {
+    const { count } = await supabase
+      .from("spins")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", TENANT_ID)
+      .eq("campaign_id", campaign.id)
+
+    totalSpins = count || 0
+  }
 
   return {
     campaign,
-    totalSpins: totalSpins || 0,
+    totalSpins,
     winner,
   }
 }

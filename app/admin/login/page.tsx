@@ -23,16 +23,16 @@ export default function AdminLoginPage() {
     setError("")
     setLoading(true)
 
-    const result = await adminLogin(username, password)
-
-    if (result.error) {
-      setError(result.error)
+    try {
+      await adminLogin(username, password)
+      router.push("/admin")
+      router.refresh()
+    } catch (error: any) {
+      if (error?.message && !error.message.includes("NEXT_REDIRECT")) {
+        setError("Usuário ou senha inválidos")
+      }
       setLoading(false)
-      return
     }
-
-    router.push("/admin")
-    router.refresh()
   }
 
   return (
