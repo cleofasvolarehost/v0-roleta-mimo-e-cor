@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { cookies, headers } from "next/headers"
 import { TENANT_ID } from "@/lib/config"
-import { redirect } from "next/navigation"
 
 async function getUserIP(): Promise<string> {
   const headersList = await headers()
@@ -312,7 +311,7 @@ export async function adminLogin(username: string, password: string) {
     })
 
     console.log("[v0] Cookie de sessão criado")
-    redirect("/admin")
+    return { success: true }
   }
 
   console.log("[v0] Credenciais inválidas")

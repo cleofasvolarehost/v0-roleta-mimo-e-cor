@@ -25,13 +25,15 @@ export default function AdminLoginPage() {
 
     try {
       await adminLogin(username, password)
-      router.push("/admin")
-      router.refresh()
-    } catch (error: any) {
-      if (error?.message && !error.message.includes("NEXT_REDIRECT")) {
-        setError("Usuário ou senha inválidos")
-      }
+      // If we get here, credentials were wrong (no redirect happened)
+      setError("Usuário ou senha inválidos")
       setLoading(false)
+    } catch (error: any) {
+      if (!error?.message?.includes("NEXT_REDIRECT")) {
+        console.error("[v0] Login error:", error)
+        setError("Erro ao fazer login. Tente novamente.")
+        setLoading(false)
+      }
     }
   }
 
