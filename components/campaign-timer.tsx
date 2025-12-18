@@ -21,7 +21,7 @@ export default function CampaignTimer({ endsAt }: CampaignTimerProps) {
       if (distance < 0) {
         setTimeRemaining("Campanha expirada!")
         setIsExpired(true)
-        setTimeout(() => window.location.reload(), 2000)
+        // Removido reload automático para evitar loops infinitos
         return
       }
 

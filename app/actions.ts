@@ -1460,13 +1460,21 @@ export async function getCampaignStatsV2() {
     .order("created_at", { ascending: false })
     .limit(1)
 
-  const campaign = campaigns && campaigns.length > 0 ? campaigns[0] : null
+  let campaign = campaigns && campaigns.length > 0 ? campaigns[0] : null
+  
+  // Auto-expire logic: Se estiver ativa mas o tempo acabou, desativar no banco
+  if (campaign && campaign.is_active && campaign.ends_at && new Date(campaign.ends_at) < new Date()) {
+      console.log("[v0] getCampaignStatsV2 detectou campanha expirada. Desativando...")
+      await supabase.from("campaigns").update({ is_active: false }).eq("tenant_id", TENANT_ID).eq("id", campaign.id)
+      campaign.is_active = false
+  }
+
   let winner = null
 
-  // If no campaign or inactive with no winner, return cleaned stats
-  if (!campaign || (campaign.is_active === false && !campaign.winner_id)) {
+  // If no campaign, return null
+  if (!campaign) {
      return {
-        campaign: campaign || null,
+        campaign: null,
         totalSpins: 0,
         winner: null
      }
@@ -1487,18 +1495,17 @@ export async function getCampaignStatsV2() {
   // Count participants
   let totalSpins = 0
   
-  // FIX: Se a campanha estiver INATIVA, zerar o contador de participantes visíveis
-  // Isso atende à solicitação de "não mostrar participantes" quando a campanha encerra.
-  if (campaign.is_active) {
-      if (campaign.started_at) {
-            const { count: pCount } = await supabase
-            .from("players")
-            .select("*", { count: "exact", head: true })
-            .eq("tenant_id", TENANT_ID)
-            .gte("created_at", campaign.started_at)
-            
-            totalSpins = pCount || 0
-      }
+  // FIX: Contar participantes SEMPRE que houver data de início, 
+  // independente se a campanha está ativa ou não.
+  // Isso permite realizar o sorteio APÓS o término da campanha.
+  if (campaign.started_at) {
+        const { count: pCount } = await supabase
+        .from("players")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", TENANT_ID)
+        .gte("created_at", campaign.started_at)
+        
+        totalSpins = pCount || 0
   }
 
   return { campaign, totalSpins, winner }
