@@ -76,7 +76,15 @@ export function Wheel({ prizes, onSpin, disabled }: WheelProps) {
   }
 
   const handleSpin = async () => {
-    if (spinning || disabled || prizes.length === 0) return
+    // Definir prêmios efetivos antes de checar se está vazio
+    const effectivePrizes = prizes.length > 0 ? prizes : [{ id: 'dummy', name: 'R$ 50', probability: 100 } as Prize]
+    
+    console.log("[v0] handleSpin clicado. Spinning:", spinning, "Disabled:", disabled, "Prizes:", effectivePrizes.length)
+
+    if (spinning || disabled) {
+      console.log("[v0] Giro bloqueado: já girando ou desabilitado")
+      return
+    }
 
     setSpinning(true)
     setResult(null)
