@@ -140,20 +140,28 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
 
   const executeDraw = async () => {
       setDrawingStep('revealing')
-      const token = getAuthToken()
-      // USAR emergencyDrawWinner para garantir sorteio sem erros de campanha
-      const result = await emergencyDrawWinner(token)
       
-      if (result.error) {
-          alert("Erro crítico no sorteio de emergência: " + result.error)
-          setIsDrawing(false)
-          setDrawingStep('idle')
-      } else if (result.success && result.winner) {
-          // Pequeno delay para "processando"
-          setTimeout(() => {
+      try {
+        console.log("[Front] Chamando API de Sorteio de Emergência...")
+        const response = await fetch('/api/emergency-draw', { 
+            method: 'POST',
+            cache: 'no-store'
+        })
+        
+        const result = await response.json()
+        
+        if (!response.ok || result.error) {
+             alert("Erro na API de Sorteio: " + (result.error || response.statusText))
+             setIsDrawing(false)
+             setDrawingStep('idle')
+        } else if (result.success && result.winner) {
              setWinnerResult(result.winner)
              setDrawingStep('finished')
-          }, 2000)
+        }
+      } catch (e) {
+          alert("Erro de conexão ao sortear: " + e)
+          setIsDrawing(false)
+          setDrawingStep('idle')
       }
   }
 
