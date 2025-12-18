@@ -762,27 +762,97 @@ export async function drawWinner(campaignId: string, token?: string) {
     }
   }
 
-  const { data: allSpins } = await supabase
-    .from("spins")
-    .select(`
-      *,
-      players (name, phone)
-    `)
-    .eq("tenant_id", TENANT_ID)
-    .eq("campaign_id", campaignId)
-
-  if (!allSpins || allSpins.length === 0) {
-    return { error: "Nenhum participante nesta campanha" }
+  // Buscar TODOS os participantes elegíveis (Players)
+  // Usamos created_at >= campaign.started_at para pegar quem se cadastrou nesta campanha
+  // Isso inclui quem girou e quem falhou no giro (fantasmas)
+  
+  let eligiblePlayers = []
+  
+  if (campaign.started_at) {
+      const { data: players } = await supabase
+        .from("players")
+        .select("id, name, phone")
+        .eq("tenant_id", TENANT_ID)
+        .gte("created_at", campaign.started_at)
+        
+      if (players) eligiblePlayers = players
+  } else {
+      // Fallback se não tiver data de inicio (improvavel)
+      const { data: spins } = await supabase
+        .from("spins")
+        .select("player_id")
+        .eq("tenant_id", TENANT_ID)
+        .eq("campaign_id", campaignId)
+        
+      if (spins) {
+          const playerIds = spins.map(s => s.player_id)
+          const { data: players } = await supabase
+            .from("players")
+            .select("id, name, phone")
+            .eq("tenant_id", TENANT_ID)
+            .in("id", playerIds)
+            
+          if (players) eligiblePlayers = players
+      }
   }
 
-  console.log("[v0] Nenhum ganhador automático. Sorteando entre", allSpins.length, "participantes")
+  if (eligiblePlayers.length === 0) {
+    return { error: "Nenhum participante elegível nesta campanha" }
+  }
 
-  const randomIndex = Math.floor(Math.random() * allSpins.length)
-  const winnerSpin = allSpins[randomIndex]
+  console.log("[v0] Sorteando entre", eligiblePlayers.length, "jogadores elegíveis")
 
-  console.log("[v0] Ganhador sorteado manualmente:", winnerSpin)
+  const randomIndex = Math.floor(Math.random() * eligiblePlayers.length)
+  const winnerPlayer = eligiblePlayers[randomIndex]
 
-  await supabase.from("spins").update({ is_winner: true }).eq("tenant_id", TENANT_ID).eq("id", winnerSpin.id)
+  console.log("[v0] Jogador sorteado:", winnerPlayer.name, winnerPlayer.id)
+  
+  // Verificar se o ganhador já tem um spin
+  let { data: winnerSpin } = await supabase
+    .from("spins")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .eq("player_id", winnerPlayer.id)
+    .eq("campaign_id", campaignId)
+    .limit(1)
+    .maybeSingle()
+    
+  if (!winnerSpin) {
+      console.log("[v0] Ganhador não tinha spin (fantasma). Criando spin vencedor...")
+      
+      // Buscar prêmio padrão
+      const { data: defaultPrize } = await supabase
+        .from("prizes")
+        .select("id")
+        .eq("tenant_id", TENANT_ID)
+        .limit(1)
+        .maybeSingle()
+        
+      // Criar spin vencedor
+      const { data: newSpin, error: createSpinError } = await supabase
+        .from("spins")
+        .insert({
+          tenant_id: TENANT_ID,
+          player_id: winnerPlayer.id,
+          prize_id: defaultPrize?.id, // Pode ser null se não tiver prêmio, mas vamos tentar
+          campaign_id: campaignId,
+          is_winner: true,
+          ip_address: "system_draw",
+          user_agent: "system_draw"
+        })
+        .select()
+        .single()
+        
+      if (createSpinError || !newSpin) {
+          console.error("[v0] Erro ao criar spin para ganhador:", createSpinError)
+          return { error: "Erro técnico ao registrar ganhador" }
+      }
+      
+      winnerSpin = newSpin
+  } else {
+      // Atualizar spin existente
+      await supabase.from("spins").update({ is_winner: true }).eq("tenant_id", TENANT_ID).eq("id", winnerSpin.id)
+  }
 
   await supabase
     .from("campaigns")
@@ -796,8 +866,8 @@ export async function drawWinner(campaignId: string, token?: string) {
   return {
     success: true,
     winner: {
-      name: winnerSpin.players?.name,
-      phone: winnerSpin.players?.phone,
+      name: winnerPlayer.name,
+      phone: winnerPlayer.phone,
       spinId: winnerSpin.id,
     },
   }
