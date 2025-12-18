@@ -329,6 +329,24 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     ? Math.max(0, Math.floor((new Date(stats.campaign.ends_at).getTime() - Date.now()) / 1000 / 60))
     : 0
 
+  // Helpers para extrair dados do ganhador com segurança
+  const getWinnerName = (winner: any) => {
+      if (!winner) return "..."
+      // Tenta pegar de várias estruturas possíveis
+      if (winner.players?.name) return winner.players.name
+      if (winner.player?.name) return winner.player.name 
+      if (Array.isArray(winner.players) && winner.players[0]?.name) return winner.players[0].name
+      return "Nome Desconhecido"
+  }
+
+  const getWinnerPhone = (winner: any) => {
+      if (!winner) return "..."
+      if (winner.players?.phone) return winner.players.phone
+      if (winner.player?.phone) return winner.player.phone
+      if (Array.isArray(winner.players) && winner.players[0]?.phone) return winner.players[0].phone
+      return "Telefone Desconhecido"
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-surface to-background">
       {/* Header */}
@@ -514,27 +532,27 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
               
               <CardContent className="p-6 flex-1 flex flex-col justify-center">
                 {stats.winner ? (
-                  <div className="space-y-4">
-                    <div>
-                        <p className="text-2xl font-black text-gray-900 dark:text-white leading-tight">
-                            {stats.winner.players.name}
+                  <div className="space-y-6">
+                    <div className="py-2">
+                        <p className="text-3xl font-black text-black leading-tight text-center break-words uppercase">
+                            {getWinnerName(stats.winner)}
                         </p>
                     </div>
                     
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-100 dark:border-zinc-700">
-                      <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-full shrink-0">
-                          <Phone className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    <div className="flex items-center justify-center gap-3 p-4 bg-gray-900 rounded-xl shadow-lg transform scale-105">
+                      <div className="bg-green-500 p-2 rounded-full shrink-0">
+                          <Phone className="w-5 h-5 text-white" />
                       </div>
-                      <p className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200">
-                        {stats.winner.players.phone}
+                      <p className="text-2xl font-mono font-bold text-white tracking-wider">
+                        {getWinnerPhone(stats.winner)}
                       </p>
                     </div>
 
-                    <div className="pt-3 border-t border-gray-100 dark:border-zinc-700">
-                       <p className="text-xs text-muted mb-1 flex items-center gap-1">
-                         <Gift className="w-3 h-3" /> Prêmio
+                    <div className="pt-4 border-t border-gray-200">
+                       <p className="text-xs text-muted mb-1 flex items-center justify-center gap-1 uppercase tracking-widest font-bold">
+                         <Gift className="w-3 h-3" /> Prêmio Conquistado
                        </p>
-                       <p className="text-sm font-semibold text-green-600 dark:text-green-400">R$ 50 Vale Compras</p>
+                       <p className="text-xl font-bold text-green-600 text-center">R$ 50 Vale Compras</p>
                     </div>
                   </div>
                 ) : (
