@@ -1611,5 +1611,6 @@ export async function resetDraw(campaignId: string, token?: string) {
       .eq("id", campaignId)
   }
 
+  revalidatePath("/admin")
   return { success: true }
 }

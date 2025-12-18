@@ -179,6 +179,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     if (result.error) {
       alert("Erro ao resetar sorteio: " + result.error)
     } else {
+      alert("Sorteio cancelado! Você pode realizar um novo sorteio agora.")
       window.location.reload()
     }
     setLoading(false)
