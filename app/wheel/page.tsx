@@ -72,18 +72,10 @@ export default function WheelPage() {
 
     if (!player) return { isWinner: false, prize: currentPrize }
 
-    // Se for dummy, não tentar gravar no banco (vai dar erro de UUID)
-    // A menos que a gente queira tratar isso no backend. 
-    // Por enquanto, vamos assumir que se é dummy, é só visual ou erro.
+    // Se for dummy, enviar mesmo assim. O backend vai tentar achar um prêmio válido para registrar.
+    // Isso garante que o participante seja salvo no banco.
     
-    let result;
-    if (prizeId === 'dummy') {
-        console.log("[v0] Girando com prêmio dummy (sem gravação no banco)")
-        // Simular um resultado não-vencedor para evitar erros de banco
-        result = { error: null, isWinner: false } 
-    } else {
-        result = await recordSpin(player.id, prizeId, deviceFingerprint)
-    }
+    let result = await recordSpin(player.id, prizeId, deviceFingerprint)
 
     if (result.error) {
       setError(result.error)

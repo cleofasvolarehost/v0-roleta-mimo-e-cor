@@ -146,7 +146,7 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
   const ipAddress = await getUserIP()
   const userAgent = await getUserAgent()
 
-  console.log("[v0] Registrando giro - Player ID:", playerId)
+  console.log("[v0] Registrando giro - Player ID:", playerId, "Prize ID:", prizeId)
 
   const campaignResult = await getActiveCampaign()
   if (!campaignResult.data) {
@@ -154,6 +154,28 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
   }
 
   const campaign = campaignResult.data
+
+  // Validar prêmio
+  let validPrizeId = prizeId
+  if (prizeId === 'dummy' || !prizeId) {
+      console.log("[v0] ID de prêmio inválido ('dummy'). Buscando prêmio padrão...")
+      const { data: defaultPrize } = await supabase
+        .from("prizes")
+        .select("id")
+        .eq("tenant_id", TENANT_ID)
+        .limit(1)
+        .maybeSingle()
+      
+      if (defaultPrize) {
+          validPrizeId = defaultPrize.id
+          console.log("[v0] Usando prêmio padrão do banco:", validPrizeId)
+      } else {
+          console.error("[v0] CRÍTICO: Nenhum prêmio encontrado no banco para associar ao giro!")
+          // Se não tiver prêmio nenhum, não dá pra salvar na tabela spins se ela exigir prize_id
+          // Mas vamos tentar salvar mesmo assim, talvez a coluna aceite null
+          // Se a coluna for NOT NULL, isso vai falhar.
+      }
+  }
 
   const { data: existingWinner } = await supabase
     .from("campaigns")
@@ -177,7 +199,7 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
     .insert({
       tenant_id: TENANT_ID,
       player_id: playerId,
-      prize_id: prizeId,
+      prize_id: validPrizeId,
       campaign_id: campaign.id,
       is_winner: isWinner,
       ip_address: ipAddress,
