@@ -431,63 +431,43 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-border overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-green-500 to-emerald-600 text-white pb-8">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-yellow-300" />
-                    Ganhador da Campanha
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 relative">
+            <Card className="border-2 border-border overflow-hidden flex flex-col">
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+                <h3 className="text-white font-bold flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <Trophy className="w-4 h-4 text-yellow-300" />
+                    Ganhador
+                </h3>
+              </div>
+              
+              <CardContent className="p-6 flex-1 flex flex-col justify-center">
                 {stats.winner ? (
-                  <div className="space-y-4 -mt-4 bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-zinc-700">
+                  <div className="space-y-4">
                     <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Parabéns para</p>
                         <p className="text-2xl font-black text-gray-900 dark:text-white leading-tight">
                             {stats.winner.players.name}
                         </p>
                     </div>
                     
-                    <div className="p-4 bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 flex items-center gap-3">
-                      <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-full">
-                          <Phone className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-lg border border-gray-100 dark:border-zinc-700">
+                      <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-full shrink-0">
+                          <Phone className="w-4 h-4 text-green-600 dark:text-green-400" />
                       </div>
-                      <div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Telefone para contato</p>
-                          <p className="text-xl font-mono font-bold text-gray-800 dark:text-gray-200 tracking-wide">
-                            {stats.winner.players.phone}
-                          </p>
-                      </div>
+                      <p className="text-lg font-mono font-bold text-gray-800 dark:text-gray-200">
+                        {stats.winner.players.phone}
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/10 p-3 rounded-lg">
-                        <Gift className="w-5 h-5" />
-                        <span className="font-bold">Prêmio: R$ 50 em Vale Compras</span>
-                    </div>
-
-                    <div className="pt-4 border-t border-gray-100 dark:border-zinc-700">
-                      <p className="text-xs font-bold text-gray-400 uppercase mb-3">Próximos passos</p>
-                      <ul className="space-y-2">
-                        {[
-                            "Ligue para o ganhador",
-                            "Informe sobre o prêmio",
-                            "Combine a retirada"
-                        ].map((step, i) => (
-                            <li key={i} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                                <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
-                                    {i + 1}
-                                </div>
-                                {step}
-                            </li>
-                        ))}
-                      </ul>
+                    <div className="pt-3 border-t border-gray-100 dark:border-zinc-700">
+                       <p className="text-xs text-muted mb-1 flex items-center gap-1">
+                         <Gift className="w-3 h-3" /> Prêmio
+                       </p>
+                       <p className="text-sm font-semibold text-green-600 dark:text-green-400">R$ 50 Vale Compras</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-10">
-                    <Trophy className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-xl text-gray-400 font-medium">Ainda não há ganhador</p>
-                    <p className="text-sm text-gray-400">O sorteio ainda não foi realizado.</p>
+                  <div className="text-center py-4">
+                    <Trophy className="w-10 h-10 text-gray-200 dark:text-zinc-700 mx-auto mb-2" />
+                    <p className="text-gray-400 font-medium">Aguardando sorteio</p>
                   </div>
                 )}
               </CardContent>
