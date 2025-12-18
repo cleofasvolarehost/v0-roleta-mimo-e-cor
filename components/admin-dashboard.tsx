@@ -11,12 +11,13 @@ import {
   exportParticipantsCSV, // Import da função exportParticipantsCSV
   getSpinHistory, // Import da função getSpinHistory
   generateTestParticipants, // Import da função de teste
+  restoreParticipantsFromCSV, // Import da função de restore
 } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X, ChevronLeft, ChevronRight, Phone, Gift } from "lucide-react" // Adicionado X icon
+import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X, ChevronLeft, ChevronRight, Phone, Gift, Upload } from "lucide-react" // Adicionado Upload icon
 import CampaignTimer from "@/components/campaign-timer" // Import da nova função
 
 interface AdminDashboardProps {
@@ -257,6 +258,28 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     setLoading(true)
     const token = getAuthToken()
     const result = await generateTestParticipants(token)
+    
+    if (result.error) {
+      alert("Erro: " + result.error)
+    } else {
+      alert("✅ " + result.message)
+      window.location.reload()
+    }
+    setLoading(false)
+  }
+
+  const handleRestoreCSV = async () => {
+    if (!stats.campaign?.is_active) {
+        alert("Ative a campanha primeiro para restaurar participantes!")
+        return
+    }
+
+    const csvContent = window.prompt("Cole o conteúdo do CSV aqui para restaurar os participantes:\n(Formato: \"Nome\",\"Telefone\",...)")
+    if (!csvContent) return
+
+    setLoading(true)
+    const token = getAuthToken()
+    const result = await restoreParticipantsFromCSV(csvContent, token)
     
     if (result.error) {
       alert("Erro: " + result.error)
@@ -624,7 +647,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
             </CardContent>
           </Card>
           {/* Ferramentas de Teste */}
-          <div className="flex justify-center mt-8 pb-12">
+          <div className="flex flex-wrap justify-center gap-4 mt-8 pb-12">
             <Button 
                 variant="outline" 
                 onClick={handleGenerateTest} 
@@ -633,6 +656,16 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
             >
                 <RefreshCw className="w-4 h-4" />
                 Gerar 10 Participantes de Teste
+            </Button>
+
+            <Button 
+                variant="outline" 
+                onClick={handleRestoreCSV} 
+                disabled={loading || !isActive}
+                className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+            >
+                <Upload className="w-4 h-4" />
+                Restaurar Backup CSV
             </Button>
           </div>
         </div>

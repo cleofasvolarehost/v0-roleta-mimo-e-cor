@@ -1151,3 +1151,63 @@ export async function generateTestParticipants(token?: string) {
 
   return { success: true, message: `${createdCount} participantes de teste gerados com sucesso!` }
 }
+
+export async function restoreParticipantsFromCSV(csvContent: string, token?: string) {
+  console.log("[v0] Restaurando participantes do CSV...")
+
+  const authCheck = await checkAdminAuth(token)
+  if (!authCheck.isAuthenticated) {
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+  const ipAddress = "127.0.0.1" // Restaurado
+  const userAgent = "CSV Restore"
+
+  // Processar o CSV
+  // Formato esperado: "Nome","Telefone","Data/Hora","Ganhou"
+  const lines = csvContent.split('\n')
+  let restoredCount = 0
+  let errorCount = 0
+
+  for (const line of lines) {
+    // Ignorar cabeçalho ou linhas vazias
+    if (!line.trim() || line.includes("Nome,Telefone")) continue
+
+    // Regex para pegar conteúdo entre aspas
+    const matches = line.match(/"([^"]*)"/g)
+    if (!matches || matches.length < 2) continue
+
+    const name = matches[0].replace(/"/g, '').trim()
+    // Limpar telefone mantendo apenas números, mas se tiver DDD, ok.
+    // O banco espera string, então vamos limpar formatação visual apenas se necessário
+    let phone = matches[1].replace(/"/g, '').trim()
+    
+    // Opcional: remover caracteres não numéricos se o seu banco exige apenas números
+    // phone = phone.replace(/\D/g, '') 
+    
+    // Tenta criar player
+    const { error } = await supabase
+      .from("players")
+      .insert({
+        tenant_id: TENANT_ID,
+        name: name,
+        phone: phone,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+      })
+    
+    if (!error) {
+        restoredCount++
+    } else {
+        // Se der erro (ex: duplicado), ignoramos e seguimos
+        console.log(`Erro ao restaurar ${name}:`, error.message)
+        errorCount++
+    }
+  }
+
+  return { 
+    success: true, 
+    message: `${restoredCount} participantes restaurados com sucesso! (${errorCount} falhas/duplicados)` 
+  }
+}
