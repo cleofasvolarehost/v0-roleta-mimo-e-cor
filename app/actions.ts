@@ -983,6 +983,15 @@ export async function clearParticipants(token?: string) {
 
   const supabase = await createClient()
 
+  const { error: updateCampaignsError } = await supabase
+    .from("campaigns")
+    .update({ winner_id: null })
+    .eq("tenant_id", TENANT_ID)
+
+  if (updateCampaignsError) {
+     console.log("[v0] Erro ao desvincular ganhadores:", updateCampaignsError)
+  }
+
   const { error: deleteSpinsError } = await supabase
     .from("spins")
     .delete()
@@ -1005,7 +1014,9 @@ export async function clearParticipants(token?: string) {
     return { error: "Erro ao limpar jogadores: " + deletePlayersError.message }
   }
 
-  await supabase.from("campaigns").update({ winner_id: null }).eq("tenant_id", TENANT_ID).eq("is_active", true)
+  // Opcional: Deletar campanhas de teste antigas? 
+  // Por enquanto, apenas garantimos que nenhuma tenha ganhador e todas estejam inativas
+  await supabase.from("campaigns").update({ is_active: false }).eq("tenant_id", TENANT_ID)
 
   console.log("[v0] Banco de dados limpo com sucesso!")
   return { success: true, message: "Todos os participantes foram removidos com sucesso!" }
