@@ -44,9 +44,16 @@ export async function registerPlayer(formData: {
     .single()
 
   if (existingByPhone) {
+    // Verificar se realmente tem giros na tabela spins
+    const { count: spinCount } = await supabase
+      .from("spins")
+      .select("*", { count: "exact", head: true })
+      .eq("player_id", existingByPhone.id)
+      .eq("tenant_id", TENANT_ID)
+
     // Se o telefone existe mas NÃO tem giros (cadastro incompleto)
-    if (!existingByPhone.spins || existingByPhone.spins.length === 0) {
-      console.log("[v0] Cadastro incompleto encontrado, deletando registro anterior")
+    if (spinCount === 0) {
+      console.log("[v0] Cadastro incompleto encontrado (sem giros), deletando registro anterior do ID:", existingByPhone.id)
 
       // Deletar o cadastro incompleto para permitir novo registro
       const { error: deleteError } = await supabase
@@ -57,8 +64,10 @@ export async function registerPlayer(formData: {
 
       if (deleteError) {
         console.error("[v0] Erro ao deletar cadastro incompleto:", deleteError)
+        // Se falhar ao deletar, vamos tentar prosseguir e atualizar o registro existente em vez de criar novo
+        // Mas o ideal é limpar.
       } else {
-        console.log("[v0] Cadastro incompleto deletado, permitindo novo registro")
+        console.log("[v0] Cadastro incompleto deletado com sucesso. Permitindo novo registro.")
       }
     } else {
       // Se já tem giros, não permitir novo cadastro
