@@ -35,9 +35,11 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
 
   const getAuthToken = () => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("admin_session") || undefined
-      console.log("[v0] getAuthToken retornando:", token)
-      return token
+      localStorage.removeItem("admin_token")
+      const token = localStorage.getItem("admin_session")
+      console.log("[v0] getAuthToken lendo do localStorage:", token)
+      console.log("[v0] Todos os itens do localStorage:", Object.keys(localStorage))
+      return token || undefined
     }
     return undefined
   }

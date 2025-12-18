@@ -18,7 +18,9 @@ export default function AdminLoginPage() {
   const router = useRouter()
 
   useEffect(() => {
-    const token = localStorage.getItem("admin_token")
+    localStorage.removeItem("admin_token")
+    const token = localStorage.getItem("admin_session")
+    console.log("[v0] Token no localStorage ao carregar login:", token)
     if (token === "authenticated") {
       router.push("/admin")
     }
@@ -35,9 +37,16 @@ export default function AdminLoginPage() {
       const result = await adminLogin(username, password)
 
       if (result.success && result.token) {
-        console.log("[v0] Login bem-sucedido, salvando token no localStorage")
-        localStorage.setItem("admin_token", result.token)
-        router.push("/admin")
+        console.log("[v0] Login bem-sucedido, token recebido:", result.token)
+
+        localStorage.setItem("admin_session", result.token)
+        const verificacao = localStorage.getItem("admin_session")
+        console.log("[v0] Token salvo e verificado:", verificacao)
+
+        await new Promise((resolve) => setTimeout(resolve, 200))
+
+        console.log("[v0] Redirecionando para /admin")
+        window.location.href = "/admin"
         return
       }
 
