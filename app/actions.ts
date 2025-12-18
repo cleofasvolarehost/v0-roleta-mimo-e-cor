@@ -641,8 +641,8 @@ export async function getAllWinners() {
         .from("players")
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", TENANT_ID)
-        // Se a campanha tiver data de inicio, usamos ela como corte. Se não, pega todos.
-        .gte("created_at", campaign.started_at || "2024-01-01") 
+        // REMOVIDO FILTRO DE DATA: Conta todos os participantes do banco para evitar confusão
+        // .gte("created_at", campaign.started_at || "2024-01-01") 
 
       return {
         campaign,
