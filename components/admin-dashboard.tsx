@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X, ChevronLeft, ChevronRight, Phone, Gift, Upload } from "lucide-react" // Adicionado Upload icon
+import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X, ChevronLeft, ChevronRight, Phone, Gift, Upload, RotateCcw } from "lucide-react" // Adicionado Upload icon
 import CampaignTimer from "@/components/campaign-timer" // Import da nova função
 
 interface AdminDashboardProps {
@@ -551,7 +551,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
               
               <CardContent className="p-6 flex-1 flex flex-col justify-center">
                 {stats.winner ? (
-                  <div className="space-y-6">
+                  <div className="space-y-6 relative">
                     <div className="py-2">
                         <p className="text-3xl font-black text-black leading-tight text-center break-words uppercase">
                             {getWinnerName(stats.winner)}
@@ -573,6 +573,18 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
                        </p>
                        <p className="text-xl font-bold text-green-600 text-center">R$ 50 Vale Compras</p>
                     </div>
+
+                    {/* Botão Secreto de Reset - Agora um pouco mais visível para o admin */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleResetDraw}
+                      disabled={loading}
+                      className="absolute right-0 bottom-0 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-all w-8 h-8"
+                      title="Cancelar Sorteio (Resetar)"
+                    >
+                       <RotateCcw className="w-4 h-4" />
+                    </Button>
                   </div>
                 ) : (
                   <div className="text-center py-4">
