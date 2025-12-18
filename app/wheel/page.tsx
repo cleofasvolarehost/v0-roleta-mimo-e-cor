@@ -230,15 +230,15 @@ export default function WheelPage() {
                     </>
                   ) : (
                     <>
-                      <h3 className="text-5xl font-black mb-6 tracking-wide">Participação Registrada!</h3>
-                      <p className="text-2xl font-bold mb-4">✅ Você está concorrendo ao sorteio!</p>
+                      <h3 className="text-3xl md:text-5xl font-black mb-6 tracking-wide break-words">Participação Registrada!</h3>
+                      <p className="text-xl md:text-2xl font-bold mb-4">✅ Você está concorrendo ao sorteio!</p>
                       <div className="bg-yellow-300 text-gray-900 rounded-2xl p-6 my-6">
-                        <p className="text-6xl font-black mb-2">R$ 50</p>
-                        <p className="text-xl font-bold">Vale Compras</p>
+                        <p className="text-5xl md:text-6xl font-black mb-2">R$ 50</p>
+                        <p className="text-lg md:text-xl font-bold">Vale Compras</p>
                       </div>
                       <div className="bg-white/10 rounded-xl p-5 mt-5">
-                        <p className="text-xl font-semibold mb-3">📢 Como funciona o sorteio?</p>
-                        <p className="text-base text-white/95 leading-relaxed">
+                        <p className="text-lg md:text-xl font-semibold mb-3">📢 Como funciona o sorteio?</p>
+                        <p className="text-sm md:text-base text-white/95 leading-relaxed">
                           Ao final da campanha (1 hora), sortearemos 1 GANHADOR entre todos os participantes. Se você
                           for sorteado, entraremos em contato pelo telefone cadastrado!
                         </p>
