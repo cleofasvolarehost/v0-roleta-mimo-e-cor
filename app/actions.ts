@@ -1560,3 +1560,39 @@ export async function getSpinHistoryV2(limit = 10, offset = 0) {
 
   return { data: formattedData, total: count || 0 }
 }
+
+export async function resetDraw(campaignId: string, token?: string) {
+  console.log("[v0] Resetando sorteio da campanha:", campaignId)
+
+  const authCheck = await checkAdminAuth(token)
+  if (!authCheck.isAuthenticated) {
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("winner_id")
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", campaignId)
+    .single()
+
+  if (campaign?.winner_id) {
+    // 1. Remover flag de vencedor do spin
+    await supabase
+      .from("spins")
+      .update({ is_winner: false })
+      .eq("tenant_id", TENANT_ID)
+      .eq("id", campaign.winner_id)
+
+    // 2. Remover winner_id da campanha
+    await supabase
+      .from("campaigns")
+      .update({ winner_id: null })
+      .eq("tenant_id", TENANT_ID)
+      .eq("id", campaignId)
+  }
+
+  return { success: true }
+}

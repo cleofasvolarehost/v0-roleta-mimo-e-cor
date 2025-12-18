@@ -165,6 +165,25 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
       }
   }
 
+  const handleResetDraw = async () => {
+    const confirm = window.confirm(
+      "Tem certeza que deseja cancelar o sorteio atual?\n\nO ganhador atual será removido e você poderá realizar o sorteio novamente."
+    )
+
+    if (!confirm) return
+
+    setLoading(true)
+    const token = getAuthToken()
+    const result = await resetDraw(stats.campaign?.id, token)
+
+    if (result.error) {
+      alert("Erro ao resetar sorteio: " + result.error)
+    } else {
+      window.location.reload()
+    }
+    setLoading(false)
+  }
+
   const handleDrawWinner = async () => {
     if (stats.totalSpins === 0) {
       alert("Nenhum participante para sortear!")
