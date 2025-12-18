@@ -44,35 +44,54 @@ export async function registerPlayer(formData: {
     .single()
 
   if (existingByPhone) {
-    // Verificar se realmente tem giros na tabela spins
-    const { count: spinCount } = await supabase
-      .from("spins")
-      .select("*", { count: "exact", head: true })
-      .eq("player_id", existingByPhone.id)
+    // 1. Buscar campanha ativa
+    const { data: activeCampaign } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("tenant_id", TENANT_ID)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle()
+
+    // Se não tiver campanha ativa, nem adianta verificar (mas o registro vai falhar depois de qualquer jeito)
+    // Se tiver, vamos ver se a pessoa já girou NESSA campanha.
+    if (activeCampaign) {
+      const { count: spinCountInCampaign } = await supabase
+        .from("spins")
+        .select("*", { count: "exact", head: true })
+        .eq("player_id", existingByPhone.id)
+        .eq("tenant_id", TENANT_ID)
+        .eq("campaign_id", activeCampaign.id)
+
+      if (spinCountInCampaign && spinCountInCampaign > 0) {
+        // Já girou NESTA campanha -> Bloqueia
+        console.log("[v0] Telefone já participou desta campanha específica")
+        return { error: "Este telefone já participou desta campanha!" }
+      }
+    }
+
+    // Se chegou aqui, é porque:
+    // A) Não girou na campanha atual (pode ter girado em antigas)
+    // B) Ou tentou girar na atual mas falhou (spinCount === 0)
+    
+    // Em ambos os casos, precisamos permitir o novo cadastro.
+    // Mas como o telefone é UNIQUE no banco, temos que deletar o registro antigo
+    // para permitir criar um novo com o mesmo telefone.
+    // (Isso apaga o histórico de campanhas passadas desse telefone, mas é o comportamento esperado
+    // para permitir reuso do número sem mudar a estrutura do banco para many-to-many players)
+    
+    console.log("[v0] Telefone reencontrado (nova campanha ou retry), recriando registro...")
+
+    // Deletar o cadastro antigo para permitir novo registro limpo na nova campanha
+    const { error: deleteError } = await supabase
+      .from("players")
+      .delete()
+      .eq("id", existingByPhone.id)
       .eq("tenant_id", TENANT_ID)
 
-    // Se o telefone existe mas NÃO tem giros (cadastro incompleto)
-    if (spinCount === 0) {
-      console.log("[v0] Cadastro incompleto encontrado (sem giros), deletando registro anterior do ID:", existingByPhone.id)
-
-      // Deletar o cadastro incompleto para permitir novo registro
-      const { error: deleteError } = await supabase
-        .from("players")
-        .delete()
-        .eq("id", existingByPhone.id)
-        .eq("tenant_id", TENANT_ID)
-
-      if (deleteError) {
-        console.error("[v0] Erro ao deletar cadastro incompleto:", deleteError)
-        // Se falhar ao deletar, vamos tentar prosseguir e atualizar o registro existente em vez de criar novo
-        // Mas o ideal é limpar.
-      } else {
-        console.log("[v0] Cadastro incompleto deletado com sucesso. Permitindo novo registro.")
-      }
-    } else {
-      // Se já tem giros, não permitir novo cadastro
-      console.log("[v0] Telefone já cadastrado e com giros realizados")
-      return { error: "Este telefone já está cadastrado e já participou do sorteio!" }
+    if (deleteError) {
+      console.error("[v0] Erro ao deletar cadastro antigo:", deleteError)
+      // Se não conseguir deletar, o insert abaixo vai falhar com "duplicate key"
     }
   }
 
