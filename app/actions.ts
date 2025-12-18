@@ -1522,12 +1522,11 @@ export async function getSpinHistoryV2(limit = 10, offset = 0) {
     .limit(1)
     .maybeSingle()
 
-  // FIX: Se a campanha estiver INATIVA, retorna lista vazia SEMPRE.
-  // Mesmo se tiver ganhador, não mostramos a lista de participantes na home do admin
-  // para evitar confusão. O ganhador continua aparecendo no card de destaque.
-  if (!latestCampaign || latestCampaign.is_active === false) {
+  // Se não houver campanha, retorna vazio.
+  if (!latestCampaign) {
     return { data: [], total: 0 }
   }
+  // Permitir visualização mesmo com campanha inativa (para sorteio manual)
 
   let query = supabase
     .from("players")
