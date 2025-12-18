@@ -89,15 +89,10 @@ export function Wheel({ prizes, onSpin, disabled }: WheelProps) {
     setSpinning(true)
     setResult(null)
 
+    // Tentar tocar o som sem bloquear a execução
     if (spinSoundRef.current) {
-      try {
-        spinSoundRef.current.currentTime = 0
-        spinSoundRef.current.play().catch(() => {
-          // Ignorar erro se o som não tocar
-        })
-      } catch (err) {
-        // Ignorar erro se o som não tocar
-      }
+      spinSoundRef.current.currentTime = 0
+      spinSoundRef.current.play().catch((e) => console.log("Erro ao tocar som:", e))
     }
 
     const prize = effectivePrizes[0]
