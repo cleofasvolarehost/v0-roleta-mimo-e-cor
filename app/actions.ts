@@ -212,21 +212,40 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
   let validPrizeId = prizeId
   if (prizeId === 'dummy' || !prizeId) {
       console.log("[v0] ID de prêmio inválido ('dummy'). Buscando prêmio padrão...")
-      const { data: defaultPrize } = await supabase
+      let { data: defaultPrize } = await supabase
         .from("prizes")
         .select("id")
         .eq("tenant_id", TENANT_ID)
         .limit(1)
         .maybeSingle()
       
+      if (!defaultPrize) {
+          console.log("[v0] Nenhum prêmio encontrado. Criando prêmio de fallback...")
+          // Criar um prêmio de fallback para não travar o sistema
+          const { data: newPrize, error: createPrizeError } = await supabase
+            .from("prizes")
+            .insert({
+                tenant_id: TENANT_ID,
+                name: "Participação",
+                probability: 0,
+                is_active: true,
+                color: "#cccccc"
+            })
+            .select("id")
+            .single()
+            
+          if (newPrize) {
+              defaultPrize = newPrize
+          } else {
+              console.error("[v0] Falha ao criar prêmio de fallback:", createPrizeError)
+          }
+      }
+
       if (defaultPrize) {
           validPrizeId = defaultPrize.id
-          console.log("[v0] Usando prêmio padrão do banco:", validPrizeId)
+          console.log("[v0] Usando prêmio do banco:", validPrizeId)
       } else {
-          console.error("[v0] CRÍTICO: Nenhum prêmio encontrado no banco para associar ao giro!")
-          // Se não tiver prêmio nenhum, não dá pra salvar na tabela spins se ela exigir prize_id
-          // Mas vamos tentar salvar mesmo assim, talvez a coluna aceite null
-          // Se a coluna for NOT NULL, isso vai falhar.
+          console.error("[v0] CRÍTICO: Impossível obter um ID de prêmio válido.")
       }
   }
 
