@@ -76,24 +76,46 @@ export async function registerPlayer(formData: {
     }
   }
 
-  // Verificar se o dispositivo já foi usado (bloqueio por fingerprint)
-  // DESATIVADO TEMPORARIAMENTE: Estava bloqueando usuários legítimos ou gerando falsos positivos.
-  /* 
+  // Verificar se o dispositivo já foi usado NESTA CAMPANHA
   if (formData.deviceFingerprint) {
-    const { data: existingByFingerprint } = await supabase
-      .from("players")
+    // 1. Buscar campanha ativa primeiro
+    const { data: activeCampaign } = await supabase
+      .from("campaigns")
       .select("id")
       .eq("tenant_id", TENANT_ID)
-      .eq("device_fingerprint", formData.deviceFingerprint)
+      .eq("is_active", true)
       .limit(1)
       .maybeSingle()
 
-    if (existingByFingerprint) {
-      console.log("[v0] Bloqueio por dispositivo (fingerprint):", formData.deviceFingerprint)
-      return { error: "Este dispositivo já foi usado para participar do sorteio!" }
+    if (activeCampaign) {
+      // 2. Verificar se existe algum GIRO feito por este dispositivo NA campanha ativa
+      // Precisamos fazer um join entre spins e players (porque o fingerprint fica no player)
+      // Mas como não temos o ID do player ainda, vamos buscar players com esse fingerprint
+      // e ver se algum deles tem spin na campanha atual.
+      
+      const { data: playersWithFingerprint } = await supabase
+        .from("players")
+        .select("id")
+        .eq("tenant_id", TENANT_ID)
+        .eq("device_fingerprint", formData.deviceFingerprint)
+
+      if (playersWithFingerprint && playersWithFingerprint.length > 0) {
+        const playerIds = playersWithFingerprint.map(p => p.id)
+        
+        const { count: existingSpinsInCampaign } = await supabase
+          .from("spins")
+          .select("*", { count: "exact", head: true })
+          .eq("tenant_id", TENANT_ID)
+          .eq("campaign_id", activeCampaign.id)
+          .in("player_id", playerIds)
+        
+        if (existingSpinsInCampaign && existingSpinsInCampaign > 0) {
+           console.log("[v0] Bloqueio por dispositivo: Já participou desta campanha", formData.deviceFingerprint)
+           return { error: "Este dispositivo já foi usado para participar desta campanha!" }
+        }
+      }
     }
   }
-  */
 
   const { data, error } = await supabase
     .from("players")
