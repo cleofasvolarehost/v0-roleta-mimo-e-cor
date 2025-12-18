@@ -83,13 +83,13 @@ export default function Home() {
           </Link>
 
           {/* Ver ganhadores secundário */}
-          <Link href="/ganhador" className="block">
+          <Link href="/ganhadores" className="block">
             <Button
               variant="outline"
               size="sm"
               className="w-full border-2 border-primary/30 text-primary hover:bg-primary hover:text-white font-semibold rounded-lg transition-all bg-transparent"
             >
-              Ver Ganhadores
+              Ver Galeria de Ganhadores
             </Button>
           </Link>
         </div>

@@ -9,7 +9,7 @@ import {
   clearParticipants,
   deleteParticipant, // Import da nova função
   exportParticipantsCSV, // Import da função exportParticipantsCSV
-  getSpinHistory, // Import da função getSpinHistory
+  getSpinHistoryV2, // Import da função getSpinHistoryV2
   generateTestParticipants, // Import da função de teste
   restoreParticipantsFromCSV, // Import da função de restore
   emergencyDrawWinner, // Import da função de sorteio forçado (V2)
@@ -50,7 +50,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
   const fetchPage = async (page: number) => {
     setLoading(true)
     const offset = (page - 1) * itemsPerPage
-    const result = await getSpinHistory(itemsPerPage, offset)
+    const result = await getSpinHistoryV2(itemsPerPage, offset)
     
     if (result.error) {
       alert("Erro ao carregar página: " + result.error)

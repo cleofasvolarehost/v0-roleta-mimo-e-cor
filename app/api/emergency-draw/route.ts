@@ -9,20 +9,38 @@ export async function POST(request: Request) {
     console.log("[API] Sorteio de Emergência iniciado")
     const supabase = await createClient()
 
-    // 1. Buscar participantes (MODO FALLBACK DIRETO)
-    const { data: eligiblePlayers, error: playersError } = await supabase
+    // 1. Buscar última campanha para pegar data de corte
+    const { data: latestCampaign } = await supabase
+      .from("campaigns")
+      .select("started_at")
+      .eq("tenant_id", TENANT_ID)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    // 2. Buscar participantes
+    // Se tiver campanha recente, filtra por data (igual à lista visual do admin)
+    // Se não, pega os últimos 1000
+    let query = supabase
         .from("players")
         .select("id, name, phone")
         .eq("tenant_id", TENANT_ID)
         .order("created_at", { ascending: false })
-        .limit(100) // Aumentei para 100 para garantir
+        .limit(1000)
+
+    if (latestCampaign?.started_at) {
+        console.log("[API] Filtrando participantes após:", latestCampaign.started_at)
+        query = query.gte("created_at", latestCampaign.started_at)
+    }
+
+    const { data: eligiblePlayers, error: playersError } = await query
 
     if (playersError) {
         return NextResponse.json({ error: "Erro ao buscar jogadores: " + playersError.message }, { status: 500 })
     }
 
     if (!eligiblePlayers || eligiblePlayers.length === 0) {
-        return NextResponse.json({ error: "Nenhum participante encontrado no banco de dados!" }, { status: 400 })
+        return NextResponse.json({ error: "Nenhum participante elegível encontrado para esta campanha!" }, { status: 400 })
     }
 
     // 2. Realizar o Sorteio

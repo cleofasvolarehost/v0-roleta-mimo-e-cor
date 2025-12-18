@@ -323,11 +323,17 @@ export async function getSpinHistory(limit = 10, offset = 0) {
   // Assim, mostramos apenas os participantes da campanha atual/última
   const { data: latestCampaign } = await supabase
     .from("campaigns")
-    .select("started_at")
+    .select("started_at, is_active, winner_id")
     .eq("tenant_id", TENANT_ID)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  // Se a campanha estiver INATIVA e NÃO TIVER GANHADOR, retorna lista vazia
+  // Isso atende à solicitação de "limpar a tela" ao desativar.
+  if (latestCampaign && !latestCampaign.is_active && !latestCampaign.winner_id) {
+    return { data: [], total: 0 }
+  }
 
   // Agora buscamos da tabela PLAYERS
   let query = supabase
@@ -386,6 +392,69 @@ export async function getSpinHistory(limit = 10, offset = 0) {
       },
       prizes: spin?.prizes || (spin ? null : { name: "Cadastro (Sem Giro)" }), // Indica visualmente
       has_spun: !!spin // Flag útil para saber se girou mesmo
+    }
+  })
+
+  return { data: formattedData, total: count || 0 }
+}
+
+export async function getPastWinners(limit = 10, offset = 0) {
+  const supabase = await createClient()
+
+  // 1. Buscar campanhas encerradas com ganhador
+  const { data: campaigns, error: campaignsError, count } = await supabase
+    .from("campaigns")
+    .select("id, name, started_at, ends_at, winner_id", { count: "exact" })
+    .eq("tenant_id", TENANT_ID)
+    .not("winner_id", "is", null)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (campaignsError) {
+    console.error("Erro getPastWinners (campaigns):", campaignsError)
+    return { error: "Erro ao carregar campanhas anteriores." }
+  }
+
+  if (!campaigns || campaigns.length === 0) {
+    return { data: [], total: count || 0 }
+  }
+
+  // 2. Buscar detalhes dos spins vencedores
+  const winnerIds = campaigns.map(c => c.winner_id)
+  
+  const { data: spins, error: spinsError } = await supabase
+    .from("spins")
+    .select(`
+      id,
+      spun_at,
+      players (name, phone),
+      prizes (name, description, color)
+    `)
+    .eq("tenant_id", TENANT_ID)
+    .in("id", winnerIds)
+
+  if (spinsError) {
+    console.error("Erro getPastWinners (spins):", spinsError)
+    // Se falhar ao buscar detalhes, retornamos lista vazia ou erro parcial?
+    // Melhor retornar erro para não mostrar dados quebrados
+    return { error: "Erro ao carregar detalhes dos ganhadores." }
+  }
+
+  // 3. Combinar os dados
+  const spinsMap = new Map(spins?.map(s => [s.id, s]))
+
+  const formattedData = campaigns.map(campaign => {
+    const spin = spinsMap.get(campaign.winner_id)
+    
+    return {
+      id: campaign.id,
+      campaignName: campaign.name,
+      date: campaign.started_at || campaign.ends_at,
+      winner: {
+        name: spin?.players?.name || "Desconhecido",
+        phone: spin?.players?.phone || "...",
+        prize: spin?.prizes?.name || "R$ 50 Vale Compra"
+      }
     }
   })
 
@@ -495,71 +564,33 @@ export async function activateCampaign(token?: string) {
 
   const supabase = await createClient()
 
-  const { data: existingCampaigns } = await supabase
-    .from("campaigns")
-    .select("*")
-    .eq("tenant_id", TENANT_ID)
-    .order("created_at", { ascending: false })
-    .limit(1)
-
-  let campaignId: string
-
-  if (!existingCampaigns || existingCampaigns.length === 0) {
-    console.log("[v0] Criando nova campanha...")
-    const { data: newCampaign, error: createError } = await supabase
-      .from("campaigns")
-      .insert({
-        tenant_id: TENANT_ID,
-        name: "Campanha Roleta Mimo e Cor",
-      })
-      .select()
-      .single()
-
-    if (createError || !newCampaign) {
-      console.log("[v0] Erro ao criar campanha:", createError)
-      return { error: "Erro ao criar campanha: " + (createError?.message || "Desconhecido") }
-    }
-
-    campaignId = newCampaign.id
-  } else {
-    campaignId = existingCampaigns[0].id
-  }
-
-  console.log("[v0] Ativando campanha ID:", campaignId)
-
+  console.log("[v0] Criando NOVA campanha para garantir lista limpa...")
+  
   const now = new Date()
   const endsAt = new Date(now.getTime() + 60 * 60 * 1000) // +1 hora
 
-  const { error: updateError } = await supabase
+  // SEMPRE criar uma nova campanha ao ativar
+  // Isso garante que o timestamp 'started_at' seja novo e limpe a lista de participantes visualizada
+  const { data: newCampaign, error: createError } = await supabase
     .from("campaigns")
-    .update({
+    .insert({
+      tenant_id: TENANT_ID,
+      name: `Campanha ${now.toLocaleString("pt-BR")}`,
       is_active: true,
       started_at: now.toISOString(),
       ends_at: endsAt.toISOString(),
       winner_id: null,
     })
-    .eq("tenant_id", TENANT_ID)
-    .eq("id", campaignId)
-
-  if (updateError) {
-    console.log("[v0] Erro ao ativar campanha:", updateError)
-    return { error: "Erro ao ativar campanha: " + updateError.message }
-  }
-
-  const { data: updatedCampaign, error: selectError } = await supabase
-    .from("campaigns")
-    .select("*")
-    .eq("tenant_id", TENANT_ID)
-    .eq("id", campaignId)
+    .select()
     .single()
 
-  if (selectError) {
-    console.log("[v0] Erro ao buscar campanha atualizada:", selectError)
-    return { success: true, message: "Campanha ativada (dados não puderam ser recuperados)" }
+  if (createError || !newCampaign) {
+    console.log("[v0] Erro ao criar nova campanha:", createError)
+    return { error: "Erro ao criar campanha: " + (createError?.message || "Desconhecido") }
   }
 
-  console.log("[v0] Campanha ativada com sucesso:", updatedCampaign)
-  return { data: updatedCampaign, success: true }
+  console.log("[v0] Nova campanha ativada com sucesso:", newCampaign)
+  return { data: newCampaign, success: true }
 }
 
 export async function deactivateCampaign(token?: string) {
@@ -708,6 +739,15 @@ export async function getCampaignStats() {
   let totalSpins = 0
 
   if (campaign?.id) {
+    // Se a campanha estiver INATIVA e NÃO TIVER GANHADOR, retorna ZEROS
+    if (!campaign.is_active && !winner) {
+         return {
+            campaign,
+            totalSpins: 0,
+            winner: null
+         }
+    }
+
     // Tentar contar TOTAL DE PARTICIPANTES (Players) em vez de apenas spins
     // Para incluir quem se cadastrou mas falhou no giro.
     // Usamos created_at >= campaign.started_at como filtro aproximado
@@ -1279,18 +1319,32 @@ export async function emergencyDrawWinner(token?: string) {
 
   const supabase = await createClient()
 
-  // 1. Buscar participantes (MODO FALLBACK DIRETO)
-  // Ignora datas de campanha, pega os últimos 50 cadastrados (sua lista restaurada)
-  console.log("[v0] Buscando últimos participantes cadastrados...")
-  const { data: eligiblePlayers } = await supabase
-        .from("players")
-        .select("id, name, phone")
-        .eq("tenant_id", TENANT_ID)
-        .order("created_at", { ascending: false })
-        .limit(50)
+  // 1. Buscar participantes
+  // Buscar última campanha para pegar data de corte
+  const { data: latestCampaign } = await supabase
+    .from("campaigns")
+    .select("started_at")
+    .eq("tenant_id", TENANT_ID)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let query = supabase
+      .from("players")
+      .select("id, name, phone")
+      .eq("tenant_id", TENANT_ID)
+      .order("created_at", { ascending: false })
+      .limit(1000)
+
+  if (latestCampaign?.started_at) {
+      console.log("[v0] Filtrando participantes após:", latestCampaign.started_at)
+      query = query.gte("created_at", latestCampaign.started_at)
+  }
+
+  const { data: eligiblePlayers } = await query
 
   if (!eligiblePlayers || eligiblePlayers.length === 0) {
-      return { error: "Nenhum participante encontrado no banco de dados!" }
+      return { error: "Nenhum participante elegível encontrado para esta campanha!" }
   }
 
   console.log(`[v0] Sorteando entre ${eligiblePlayers.length} participantes encontrados.`)
@@ -1383,4 +1437,109 @@ export async function emergencyDrawWinner(token?: string) {
       spinId: winnerSpin?.id,
     },
   }
+}
+
+export async function getCampaignStatsV2() {
+  const supabase = await createClient()
+
+  const { data: campaigns } = await supabase
+    .from("campaigns")
+    .select("*")
+    .eq("tenant_id", TENANT_ID)
+    .order("created_at", { ascending: false })
+    .limit(1)
+
+  const campaign = campaigns && campaigns.length > 0 ? campaigns[0] : null
+  let winner = null
+
+  // If no campaign or inactive with no winner, return cleaned stats
+  if (!campaign || (campaign.is_active === false && !campaign.winner_id)) {
+     return {
+        campaign: campaign || null,
+        totalSpins: 0,
+        winner: null
+     }
+  }
+
+  // If we have a winner_id, fetch winner details
+  if (campaign.winner_id) {
+    const { data: w } = await supabase
+      .from("spins")
+      .select(`*, players (name, phone), prizes (name)`)
+      .eq("tenant_id", TENANT_ID)
+      .eq("id", campaign.winner_id)
+      .maybeSingle()
+
+    if (w) winner = w
+  }
+
+  // Count participants
+  let totalSpins = 0
+  
+  // FIX: Se a campanha estiver INATIVA, zerar o contador de participantes visíveis
+  // Isso atende à solicitação de "não mostrar participantes" quando a campanha encerra.
+  if (campaign.is_active) {
+      if (campaign.started_at) {
+            const { count: pCount } = await supabase
+            .from("players")
+            .select("*", { count: "exact", head: true })
+            .eq("tenant_id", TENANT_ID)
+            .gte("created_at", campaign.started_at)
+            
+            totalSpins = pCount || 0
+      }
+  }
+
+  return { campaign, totalSpins, winner }
+}
+
+export async function getSpinHistoryV2(limit = 10, offset = 0) {
+  const supabase = await createClient()
+
+  const { data: latestCampaign } = await supabase
+    .from("campaigns")
+    .select("started_at, is_active, winner_id")
+    .eq("tenant_id", TENANT_ID)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // FIX: Se a campanha estiver INATIVA, retorna lista vazia SEMPRE.
+  // Mesmo se tiver ganhador, não mostramos a lista de participantes na home do admin
+  // para evitar confusão. O ganhador continua aparecendo no card de destaque.
+  if (!latestCampaign || latestCampaign.is_active === false) {
+    return { data: [], total: 0 }
+  }
+
+  let query = supabase
+    .from("players")
+    .select(`
+      id, created_at, name, phone,
+      spins (id, spun_at, is_winner, prizes (name, description, color, icon))
+    `, { count: "exact" })
+    .eq("tenant_id", TENANT_ID)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (latestCampaign.started_at) {
+      query = query.gte("created_at", latestCampaign.started_at)
+  }
+
+  const { data, error, count } = await query
+
+  if (error) return { error: "Erro ao carregar histórico" }
+
+  const formattedData = data.map((player) => {
+    const spin = player.spins && player.spins.length > 0 ? player.spins[0] : null
+    return {
+      id: spin?.id || player.id,
+      spun_at: spin?.spun_at || player.created_at,
+      is_winner: spin?.is_winner || false,
+      players: { id: player.id, name: player.name, phone: player.phone },
+      prizes: spin?.prizes || (spin ? null : { name: "Cadastro (Sem Giro)" }),
+      has_spun: !!spin
+    }
+  })
+
+  return { data: formattedData, total: count || 0 }
 }

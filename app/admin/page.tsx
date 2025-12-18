@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getCampaignStats, getSpinHistory } from "@/app/actions"
+import { getCampaignStatsV2, getSpinHistoryV2 } from "@/app/actions"
 import { AdminDashboard } from "@/components/admin-dashboard"
+
+export const dynamic = "force-dynamic"
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -25,8 +27,8 @@ export default function AdminPage() {
     // Carregar dados
     const loadData = async () => {
       try {
-        const statsResult = await getCampaignStats()
-        const spinsResult = await getSpinHistory(100)
+        const statsResult = await getCampaignStatsV2()
+        const spinsResult = await getSpinHistoryV2(100)
 
         setStats(statsResult)
         setSpins(spinsResult.data || [])
