@@ -687,13 +687,32 @@ export async function getCampaignStats() {
   let totalSpins = 0
 
   if (campaign?.id) {
-    const { count } = await supabase
+    // Tentar contar TOTAL DE PARTICIPANTES (Players) em vez de apenas spins
+    // Para incluir quem se cadastrou mas falhou no giro.
+    // Usamos created_at >= campaign.started_at como filtro aproximado
+    
+    let playerCount = 0;
+    
+    if (campaign.started_at) {
+        const { count: pCount } = await supabase
+        .from("players")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", TENANT_ID)
+        .gte("created_at", campaign.started_at)
+        
+        playerCount = pCount || 0
+    }
+    
+    // Se por algum motivo o count de players for menor que spins (improvável), usamos spins
+    // Ou se não tiver started_at, usamos spins.
+    
+    const { count: sCount } = await supabase
       .from("spins")
       .select("*", { count: "exact", head: true })
       .eq("tenant_id", TENANT_ID)
       .eq("campaign_id", campaign.id)
 
-    totalSpins = count || 0
+    totalSpins = Math.max(playerCount, sCount || 0)
   }
 
   return {
