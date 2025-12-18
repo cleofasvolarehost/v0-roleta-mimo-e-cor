@@ -118,6 +118,10 @@ export async function registerPlayer(formData: {
         .eq("tenant_id", TENANT_ID)
         .eq("device_fingerprint", formData.deviceFingerprint)
 
+      /* 
+      // DESATIVADO: Fingerprint gera falsos positivos em celulares iguais/mesma rede.
+      // Vamos confiar apenas no telefone para não bloquear clientes reais.
+      
       if (playersWithFingerprint && playersWithFingerprint.length > 0) {
         const playerIds = playersWithFingerprint.map(p => p.id)
         
@@ -133,6 +137,7 @@ export async function registerPlayer(formData: {
            return { error: "Este dispositivo já foi usado para participar desta campanha!" }
         }
       }
+      */
     }
   }
 
@@ -329,7 +334,7 @@ export async function getSpinHistory(limit = 10, offset = 0) {
         prizes (name, description, color, icon)
       )
     `,
-      { count: "exact" },
+      { count: "exact" }
     )
     .eq("tenant_id", TENANT_ID)
     .order("created_at", { ascending: false })

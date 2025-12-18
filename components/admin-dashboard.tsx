@@ -338,25 +338,32 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
               </div>
 
               {stats.campaign && !stats.campaign.winner_id && stats.totalSpins > 0 && (
-                <div className="p-6 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border-2 border-yellow-300">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="relative overflow-hidden p-8 bg-white dark:bg-zinc-900 rounded-xl border-2 border-yellow-400 shadow-lg">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                    <Trophy className="w-32 h-32 text-yellow-500" />
+                  </div>
+                  
+                  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
-                      <h3 className="text-xl font-bold text-yellow-800 dark:text-yellow-400 mb-2">
-                        Pronto para sortear?
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wide">Ação Necessária</span>
+                      </div>
+                      <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
+                        Pronto para realizar o sorteio?
                       </h3>
-                      <p className="text-sm text-yellow-700 dark:text-yellow-500">
-                        Há {stats.totalSpins} participante(s) aguardando o sorteio. O ganhador será escolhido
-                        aleatoriamente.
+                      <p className="text-gray-600 dark:text-gray-300 max-w-lg text-lg">
+                        Temos <strong className="text-yellow-600 dark:text-yellow-400">{stats.totalSpins} participantes</strong> concorrendo. 
+                        O sistema escolherá um ganhador aleatoriamente.
                       </p>
                     </div>
                     <Button
                       size="lg"
                       onClick={handleDrawWinner}
                       disabled={loading}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white gap-2 font-bold w-full md:w-auto"
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 text-lg px-8 py-6 h-auto font-bold rounded-xl flex items-center gap-3"
                     >
-                      <Trophy className="w-5 h-5" />
-                      Sortear Ganhador
+                      <Trophy className="w-6 h-6" />
+                      SORTEAR GANHADOR
                     </Button>
                   </div>
                 </div>
@@ -385,33 +392,32 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
 
           {/* Marketing and Exportation */}
           {stats.totalSpins > 0 && (
-            <Card className="border-2 border-blue-300 bg-blue-50/50 dark:bg-blue-950/20">
-              <CardHeader>
-                <CardTitle className="text-xl text-blue-700 dark:text-blue-400">Marketing e Exportação</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-blue-800 dark:text-blue-300 mb-1">
-                      Exportar dados dos participantes
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+              <div className="bg-blue-50 dark:bg-blue-900/20 px-6 py-4 border-b border-blue-100 dark:border-blue-800 flex items-center gap-2">
+                 <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                 <h3 className="font-bold text-blue-800 dark:text-blue-300">Dados da Campanha</h3>
+              </div>
+              <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                      Exportar Lista de Participantes
+                    </h4>
+                    <p className="text-gray-500 dark:text-gray-400 max-w-2xl">
+                      Baixe o arquivo CSV completo contendo os nomes e telefones dos <strong>{stats.totalSpins} participantes</strong>. 
+                      Ideal para importar em ferramentas de marketing ou CRM.
                     </p>
-                    <p className="text-sm text-blue-600 dark:text-blue-400">
-                      Baixe um arquivo CSV com nome e telefone de todos os {stats.totalSpins} participante(s) para usar
-                      em campanhas de marketing futuras.
-                    </p>
-                  </div>
-                  <Button
+                </div>
+                <Button
                     size="lg"
                     onClick={handleExportCSV}
                     disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white gap-2 font-bold w-full sm:w-auto"
+                    className="bg-blue-600 hover:bg-blue-700 text-white shadow hover:shadow-lg transition-all px-6 py-5 h-auto font-bold rounded-lg shrink-0"
                   >
-                    <Download className="w-5 h-5" />
-                    Exportar CSV
+                    <Download className="w-5 h-5 mr-2" />
+                    BAIXAR CSV
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Stats */}
@@ -468,32 +474,33 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
 
           {/* Zona de Perigo */}
           {stats.totalSpins > 0 && (
-            <Card className="border-2 border-red-300 bg-red-50/50 dark:bg-red-950/20">
-              <CardHeader>
-                <CardTitle className="text-xl text-red-700 dark:text-red-400">Zona de Perigo</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-red-800 dark:text-red-300 mb-1">Limpar todos os participantes</p>
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      Esta ação irá deletar permanentemente todos os {stats.totalSpins} participantes e seus giros. Não
-                      pode ser desfeita! Exporte o CSV antes se precisar dos dados.
-                    </p>
-                  </div>
-                  <Button
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-red-200 dark:border-red-900 shadow-sm overflow-hidden mt-8">
+               <div className="bg-red-50 dark:bg-red-950/30 px-6 py-4 border-b border-red-100 dark:border-red-900 flex items-center gap-2">
+                 <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                 <h3 className="font-bold text-red-800 dark:text-red-300">Zona de Perigo</h3>
+              </div>
+              <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div>
+                   <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                      Resetar Banco de Dados
+                   </h4>
+                   <p className="text-gray-500 dark:text-gray-400 max-w-2xl text-sm">
+                      Esta ação irá <strong>deletar permanentemente</strong> todos os {stats.totalSpins} participantes e registros de giros.
+                      Certifique-se de ter exportado o CSV antes de prosseguir.
+                   </p>
+                </div>
+                <Button
                     size="lg"
                     onClick={handleClearDatabase}
                     disabled={loading}
                     variant="destructive"
-                    className="gap-2 font-bold w-full sm:w-auto"
+                    className="gap-2 font-bold px-6 h-auto py-4 rounded-lg shrink-0"
                   >
                     <Trash2 className="w-5 h-5" />
-                    Limpar Banco
+                    LIMPAR BANCO
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Recent Spins */}

@@ -43,10 +43,28 @@ export default function CampaignTimer({ endsAt }: CampaignTimerProps) {
 
   return (
     <div
-      className={`text-center p-4 rounded-lg ${isExpired ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}
+      className={`text-center p-6 rounded-xl border-2 shadow-sm transition-all duration-300 ${
+        isExpired 
+          ? "bg-red-50 border-red-200 text-red-700" 
+          : "bg-white border-green-400 text-green-800"
+      }`}
     >
-      <div className="text-sm font-medium">{isExpired ? "⏰ Campanha Expirada" : "⏱️ Tempo Restante"}</div>
-      <div className="text-2xl font-bold mt-1">{timeRemaining}</div>
+      <div className="flex flex-col items-center justify-center gap-2">
+        <span className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isExpired ? "text-red-600" : "text-green-600"}`}>
+          {isExpired ? (
+            <>⏰ Campanha Encerrada</>
+          ) : (
+            <>
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+              </span>
+              Tempo Restante
+            </>
+          )}
+        </span>
+        <div className="text-4xl font-black font-mono tracking-tight">{timeRemaining}</div>
+      </div>
     </div>
   )
 }
