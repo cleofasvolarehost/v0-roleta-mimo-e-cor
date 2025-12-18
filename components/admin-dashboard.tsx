@@ -13,6 +13,7 @@ import {
   generateTestParticipants, // Import da função de teste
   restoreParticipantsFromCSV, // Import da função de restore
   emergencyDrawWinner, // Import da função de sorteio forçado (V2)
+  resetDraw,
 } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

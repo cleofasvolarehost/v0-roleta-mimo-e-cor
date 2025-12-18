@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
+import { revalidatePath } from "next/cache"
 import { TENANT_ID } from "@/lib/config"
 
 async function getUserIP(): Promise<string> {
