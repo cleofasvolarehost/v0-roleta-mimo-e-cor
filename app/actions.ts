@@ -264,9 +264,11 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
   let isWinner = false
 
   if (!existingWinner?.winner_id) {
-    isWinner = Math.random() < 0.02
+    // ALTERAÇÃO: Removida a chance de 2% (Math.random() < 0.02).
+    // Agora NINGUÉM ganha no giro. O ganhador será definido EXCLUSIVAMENTE pelo sorteio manual no admin.
+    isWinner = false 
 
-    console.log("[v0] Ainda não tem ganhador. Esta pessoa ganhou?", isWinner)
+    console.log("[v0] Modo Sorteio Manual Ativo: Ninguém ganha instantaneamente no giro.")
   } else {
     console.log("[v0] Já tem ganhador na campanha. Esta pessoa não pode ganhar.")
   }
