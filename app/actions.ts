@@ -235,36 +235,61 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
 export async function getSpinHistory(limit = 10, offset = 0) {
   const supabase = await createClient()
 
-  // Buscar dados paginados
+  // Agora buscamos da tabela PLAYERS para garantir que todos apareçam,
+  // mesmo se o giro falhou em ser salvo.
   const { data, error, count } = await supabase
-    .from("spins")
+    .from("players")
     .select(
       `
       id,
-      spun_at,
-      is_winner,
-      players (id, name, phone),
-      prizes (name, description, color, icon)
+      created_at,
+      name,
+      phone,
+      spins (
+        id,
+        spun_at,
+        is_winner,
+        prizes (name, description, color, icon)
+      )
     `,
       { count: "exact" },
     )
     .eq("tenant_id", TENANT_ID)
-    .order("spun_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1)
 
   if (error) {
     let errorMessage = "Erro ao carregar o histórico."
+    console.error("Erro getSpinHistory:", error)
 
     if (error.message.includes("permission denied")) {
       errorMessage = "Sem permissão para visualizar o histórico."
-    } else if (error.message.includes("not found")) {
-      errorMessage = "Nenhum histórico disponível."
     }
 
     return { error: errorMessage }
   }
 
-  return { data, total: count || 0 }
+  // Transformar os dados para manter compatibilidade com o frontend
+  // O frontend espera uma lista de objetos "spin", então vamos adaptar.
+  const formattedData = data.map((player) => {
+    // Pega o primeiro giro (se houver)
+    const spin = player.spins && player.spins.length > 0 ? player.spins[0] : null
+    
+    return {
+      id: spin?.id || player.id, // Se não tiver ID de giro, usa o do player para chave única
+      spun_at: spin?.spun_at || player.created_at, // Se não girou, usa data de cadastro
+      is_winner: spin?.is_winner || false,
+      players: {
+        id: player.id,
+        name: player.name,
+        phone: player.phone,
+      },
+      prizes: spin?.prizes || (spin ? null : { name: "Cadastro (Sem Giro)" }), // Indica visualmente
+      has_spun: !!spin // Flag útil para saber se girou mesmo
+    }
+  })
+
+  return { data: formattedData, total: count || 0 }
 }
 
 export async function getSpinHistoryOld(limit = 10) {
