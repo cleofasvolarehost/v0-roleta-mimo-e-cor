@@ -319,9 +319,18 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
 export async function getSpinHistory(limit = 10, offset = 0) {
   const supabase = await createClient()
 
-  // Agora buscamos da tabela PLAYERS para garantir que todos apareçam,
-  // mesmo se o giro falhou em ser salvo.
-  const { data, error, count } = await supabase
+  // 1. Buscar a campanha mais recente para filtrar a lista
+  // Assim, mostramos apenas os participantes da campanha atual/última
+  const { data: latestCampaign } = await supabase
+    .from("campaigns")
+    .select("started_at")
+    .eq("tenant_id", TENANT_ID)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // Agora buscamos da tabela PLAYERS
+  let query = supabase
     .from("players")
     .select(
       `
@@ -341,6 +350,13 @@ export async function getSpinHistory(limit = 10, offset = 0) {
     .eq("tenant_id", TENANT_ID)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1)
+
+  // APLICAR FILTRO: Mostrar apenas participantes desta campanha
+  if (latestCampaign?.started_at) {
+      query = query.gte("created_at", latestCampaign.started_at)
+  }
+
+  const { data, error, count } = await query
 
   if (error) {
     let errorMessage = "Erro ao carregar o histórico."
