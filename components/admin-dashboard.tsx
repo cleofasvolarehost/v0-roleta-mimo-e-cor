@@ -9,12 +9,13 @@ import {
   clearParticipants,
   deleteParticipant, // Import da nova função
   exportParticipantsCSV, // Import da função exportParticipantsCSV
+  getSpinHistory, // Import da função getSpinHistory
 } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X } from "lucide-react" // Adicionado X icon
+import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X, ChevronLeft, ChevronRight } from "lucide-react" // Adicionado X icon
 import CampaignTimer from "@/components/campaign-timer" // Import da nova função
 
 interface AdminDashboardProps {
@@ -31,14 +32,44 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
   const [spins, setSpins] = useState(initialSpins)
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(Math.ceil(initialStats.totalSpins / 10))
+  const itemsPerPage = 10
   const router = useRouter()
+
+  const fetchPage = async (page: number) => {
+    setLoading(true)
+    const offset = (page - 1) * itemsPerPage
+    const result = await getSpinHistory(itemsPerPage, offset)
+    
+    if (result.error) {
+      alert("Erro ao carregar página: " + result.error)
+    } else if (result.data) {
+      setSpins(result.data)
+      setCurrentPage(page)
+      if (result.total) {
+        setTotalPages(Math.ceil(result.total / itemsPerPage))
+      }
+    }
+    setLoading(false)
+  }
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      fetchPage(currentPage + 1)
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      fetchPage(currentPage - 1)
+    }
+  }
 
   const getAuthToken = () => {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("admin_token")
-      const token = localStorage.getItem("admin_session")
+      const token = localStorage.getItem("admin_token")
       console.log("[v0] getAuthToken lendo do localStorage:", token)
-      console.log("[v0] Todos os itens do localStorage:", Object.keys(localStorage))
       return token || undefined
     }
     return undefined
@@ -58,16 +89,8 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
       return
     }
 
-    if (result.data) {
-      setStats({
-        ...stats,
-        campaign: result.data,
-      })
-    }
-
     alert("Campanha ativada com sucesso! Recarregue a página para ver as mudanças.")
     setLoading(false)
-
     window.location.reload()
   }
 
@@ -101,9 +124,8 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
   }
 
   const handleLogout = async () => {
-    await adminLogout()
-    router.push("/admin/login")
-    router.refresh()
+    localStorage.removeItem("admin_token")
+    window.location.href = "/admin/login"
   }
 
   const handleRefresh = () => {
@@ -477,10 +499,15 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
           {/* Recent Spins */}
           <Card className="border-2 border-border">
             <CardHeader>
-              <CardTitle>Todos os Participantes ({spins.length})</CardTitle>
+              <CardTitle className="flex justify-between items-center">
+                <span>Todos os Participantes ({stats.totalSpins})</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  Página {currentPage} de {Math.max(1, totalPages)}
+                </span>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
                 {spins.length === 0 ? (
                   <p className="text-muted text-center py-8">Nenhum participante ainda</p>
                 ) : (
@@ -495,7 +522,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold text-sm">
-                          {index + 1}
+                          {(currentPage - 1) * itemsPerPage + index + 1}
                         </div>
                         <div>
                           <p className="font-semibold">{spin.players.name}</p>
@@ -525,13 +552,40 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                           title="Remover participante"
                         >
-                          <X className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
                   ))
                 )}
               </div>
+              
+              {/* Pagination Controls */}
+              {stats.totalSpins > itemsPerPage && (
+                <div className="flex justify-center items-center gap-4 pt-4 border-t border-border">
+                  <Button
+                    variant="outline"
+                    onClick={handlePrevPage}
+                    disabled={currentPage === 1 || loading}
+                    className="gap-2"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Anterior
+                  </Button>
+                  <span className="text-sm font-medium">
+                    Página {currentPage} de {Math.max(1, totalPages)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={handleNextPage}
+                    disabled={currentPage >= totalPages || loading}
+                    className="gap-2"
+                  >
+                    Próximo
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

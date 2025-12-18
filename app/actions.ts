@@ -67,6 +67,22 @@ export async function registerPlayer(formData: {
     }
   }
 
+  // Verificar se o dispositivo já foi usado (bloqueio por fingerprint)
+  if (formData.deviceFingerprint) {
+    const { data: existingByFingerprint } = await supabase
+      .from("players")
+      .select("id")
+      .eq("tenant_id", TENANT_ID)
+      .eq("device_fingerprint", formData.deviceFingerprint)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingByFingerprint) {
+      console.log("[v0] Bloqueio por dispositivo (fingerprint):", formData.deviceFingerprint)
+      return { error: "Este dispositivo já foi usado para participar do sorteio!" }
+    }
+  }
+
   const { data, error } = await supabase
     .from("players")
     .insert({
@@ -194,21 +210,25 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
   return { data: spinData, isWinner }
 }
 
-export async function getSpinHistory(limit = 10) {
+export async function getSpinHistory(limit = 10, offset = 0) {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // Buscar dados paginados
+  const { data, error, count } = await supabase
     .from("spins")
-    .select(`
+    .select(
+      `
       id,
       spun_at,
       is_winner,
       players (id, name, phone),
       prizes (name, description, color, icon)
-    `)
+    `,
+      { count: "exact" },
+    )
     .eq("tenant_id", TENANT_ID)
     .order("spun_at", { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (error) {
     let errorMessage = "Erro ao carregar o histórico."
@@ -222,7 +242,7 @@ export async function getSpinHistory(limit = 10) {
     return { error: errorMessage }
   }
 
-  return { data }
+  return { data, total: count || 0 }
 }
 
 export async function getSpinHistoryOld(limit = 10) {
@@ -299,7 +319,7 @@ export async function getActiveCampaign() {
 export async function adminLogin(username: string, password: string) {
   console.log("[v0] adminLogin chamado com username:", username)
 
-  if (username === "superadmin" && password === "malucobeleza") {
+  if (username === "superadmin" && password === "102030") {
     console.log("[v0] Credenciais corretas")
     return { success: true, token: "authenticated" }
   }
@@ -504,17 +524,18 @@ export async function getAllWinners() {
 export async function getCampaignStats() {
   const supabase = await createClient()
 
-  // Buscar última campanha com ganhador (ativa ou não)
+  // Buscar última campanha (ativa ou não)
   const { data: campaigns } = await supabase
     .from("campaigns")
     .select("*")
     .eq("tenant_id", TENANT_ID)
-    .order("started_at", { ascending: false })
+    .order("created_at", { ascending: false }) // Alterado de started_at para created_at para pegar a mais recente mesmo se não iniciada
+    .limit(1)
 
-  let campaign = null
+  const campaign = campaigns && campaigns.length > 0 ? campaigns[0] : null
   let winner = null
 
-  for (const c of campaigns || []) {
+  if (campaign) {
     const { data: w } = await supabase
       .from("spins")
       .select(
@@ -525,14 +546,12 @@ export async function getCampaignStats() {
       `,
       )
       .eq("tenant_id", TENANT_ID)
-      .eq("campaign_id", c.id)
+      .eq("campaign_id", campaign.id)
       .eq("is_winner", true)
       .maybeSingle()
 
     if (w) {
-      campaign = c
       winner = w
-      break
     }
   }
 
@@ -555,7 +574,7 @@ export async function getCampaignStats() {
   }
 }
 
-export async function drawWinner(token?: string) {
+export async function drawWinner(campaignId: string, token?: string) {
   console.log("[v0] Verificando se já existe ganhador automático...")
 
   const authCheck = await checkAdminAuth(token)
@@ -576,7 +595,7 @@ export async function drawWinner(token?: string) {
       )
     `)
     .eq("tenant_id", TENANT_ID)
-    .eq("id", "activeCampaignId") // Replace with actual campaign ID
+    .eq("id", campaignId)
     .single()
 
   if (!campaign) {
@@ -602,7 +621,7 @@ export async function drawWinner(token?: string) {
       players (name, phone)
     `)
     .eq("tenant_id", TENANT_ID)
-    .eq("campaign_id", "activeCampaignId") // Replace with actual campaign ID
+    .eq("campaign_id", campaignId)
 
   if (!allSpins || allSpins.length === 0) {
     return { error: "Nenhum participante nesta campanha" }
@@ -624,7 +643,7 @@ export async function drawWinner(token?: string) {
       is_active: false,
     })
     .eq("tenant_id", TENANT_ID)
-    .eq("id", "activeCampaignId") // Replace with actual campaign ID
+    .eq("id", campaignId)
 
   return {
     success: true,
@@ -731,8 +750,8 @@ export async function exportParticipantsCSV(campaignId?: string, token?: string)
     return { error: "Nenhum participante nesta campanha" }
   }
 
-  // Criar CSV
-  const csvHeader = "Nome,Telefone,Data/Hora,Ganhou\n"
+  // Criar CSV com BOM para compatibilidade com Excel
+  const csvHeader = "\uFEFFNome,Telefone,Data/Hora,Ganhou\n"
   const csvRows = spins
     .map((spin: any) => {
       const name = spin.players?.name || "N/A"

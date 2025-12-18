@@ -56,7 +56,7 @@ export default function WheelPage() {
     setLoading(false)
   }
 
-  const handleRegister = async (data: { name: string; deviceFingerprint?: string }) => {
+  const handleRegister = async (data: { name: string; phone: string; deviceFingerprint?: string }) => {
     const result = await registerPlayer(data)
     if (result.error) {
       throw new Error(result.error)
