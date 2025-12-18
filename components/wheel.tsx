@@ -92,7 +92,7 @@ export function Wheel({ prizes, onSpin, disabled }: WheelProps) {
       }
     }
 
-    const prize = prizes[0]
+    const prize = effectivePrizes[0]
     const targetRotation = 360 * 8 + Math.random() * 360
 
     setRotation(targetRotation)
