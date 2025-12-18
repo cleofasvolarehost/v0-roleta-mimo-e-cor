@@ -284,12 +284,17 @@ export async function recordSpin(playerId: string, prizeId: string, deviceFinger
   if (error) {
     let errorMessage = "Erro ao registrar o giro."
 
+    console.error("[v0] Erro DETALHADO ao inserir spin:", JSON.stringify(error, null, 2))
+
     if (error.code === "23505" || error.message.includes("duplicate") || error.message.includes("unique")) {
       errorMessage = "Você já girou a roleta nesta campanha!"
     } else if (error.code === "23503") {
       errorMessage = "Jogador ou prêmio inválido."
     } else if (error.message.includes("permission denied")) {
       errorMessage = "Sem permissão para registrar o giro."
+    } else {
+      // Temporário: mostrar erro técnico para debug
+      errorMessage = `Erro técnico: ${error.message} (Código: ${error.code})`
     }
 
     return { error: errorMessage }
