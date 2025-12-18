@@ -97,26 +97,22 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
   const handleDeactivate = async () => {
     console.log("[v0] Botão desativar clicado")
 
-    // Perguntar se deseja limpar participantes
-    const shouldClear = window.confirm(
-      "Deseja limpar os participantes ao desativar a campanha?\n\n" +
-        "✅ SIM - Remove todos os participantes da lista\n" +
-        "❌ NÃO - Mantém os participantes no banco",
-    )
+    // Removido prompt confuso que causava exclusão acidental de dados.
+    // Desativar agora APENAS desativa a campanha. Para limpar dados, use a Zona de Perigo.
+    
+    const confirmDeactivate = window.confirm("Deseja realmente encerrar a campanha atual?");
+    if (!confirmDeactivate) return;
 
     setLoading(true)
     const token = getAuthToken()
-    const result = await deactivateCampaignWithCleanup(shouldClear, token)
+    // Passamos false para cleanup para garantir que NADA seja deletado
+    const result = await deactivateCampaignWithCleanup(false, token)
     console.log("[v0] Resultado da desativação:", result)
 
     if (result.error) {
       alert("Erro: " + result.error)
     } else {
-      if (result.cleared) {
-        alert("✅ Campanha desativada e participantes limpos com sucesso!")
-      } else {
-        alert("✅ Campanha desativada com sucesso!")
-      }
+      alert("✅ Campanha encerrada com sucesso! Os dados do ganhador foram preservados.")
     }
 
     setLoading(false)
