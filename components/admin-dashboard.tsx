@@ -576,21 +576,20 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
           </div>
 
           {/* Zona de Perigo */}
-          {stats.totalSpins > 0 && (
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-red-200 dark:border-red-900 shadow-sm overflow-hidden mt-8">
-               <div className="bg-red-50 dark:bg-red-950/30 px-6 py-4 border-b border-red-100 dark:border-red-900 flex items-center gap-2">
-                 <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
-                 <h3 className="font-bold text-red-800 dark:text-red-300">Zona de Perigo</h3>
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-red-200 dark:border-red-900 shadow-sm overflow-hidden mt-8">
+              <div className="bg-red-50 dark:bg-red-950/30 px-6 py-4 border-b border-red-100 dark:border-red-900 flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <h3 className="font-bold text-red-800 dark:text-red-300">Zona de Perigo</h3>
               </div>
               <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                 <div>
-                   <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                  <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
                       Resetar Banco de Dados
-                   </h4>
-                   <p className="text-gray-500 dark:text-gray-400 max-w-2xl text-sm">
-                      Esta ação irá <strong>deletar permanentemente</strong> todos os {stats.totalSpins} participantes e registros de giros.
+                  </h4>
+                  <p className="text-gray-500 dark:text-gray-400 max-w-2xl text-sm">
+                      Esta ação irá <strong>deletar permanentemente</strong> todos os participantes e registros de giros.
                       Certifique-se de ter exportado o CSV antes de prosseguir.
-                   </p>
+                  </p>
                 </div>
                 <Button
                     size="lg"
@@ -603,8 +602,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
                     LIMPAR BANCO
                   </Button>
               </div>
-            </div>
-          )}
+          </div>
 
           {/* Recent Spins */}
           <Card className="border-2 border-border">
