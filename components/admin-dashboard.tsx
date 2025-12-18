@@ -57,7 +57,7 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     } else if (result.data) {
       setSpins(result.data)
       setCurrentPage(page)
-      if (result.total) {
+      if (result.total !== undefined) {
         setTotalPages(Math.ceil(result.total / itemsPerPage))
       }
     }

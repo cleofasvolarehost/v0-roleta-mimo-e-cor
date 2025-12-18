@@ -31,6 +31,12 @@ export default function AdminPage() {
         const spinsResult = await getSpinHistoryV2(100)
 
         setStats(statsResult)
+        
+        if (spinsResult.error) {
+            console.error("[v0] Erro spinsResult:", spinsResult.error)
+            // Não alertar aqui para não travar a UI, mas logar
+        }
+        
         setSpins(spinsResult.data || [])
       } catch (error) {
         console.error("[v0] Erro ao carregar dados:", error)

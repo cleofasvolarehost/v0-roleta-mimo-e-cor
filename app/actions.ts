@@ -1533,7 +1533,7 @@ export async function getSpinHistoryV2(limit = 10, offset = 0) {
     .from("players")
     .select(`
       id, created_at, name, phone,
-      spins (id, spun_at, is_winner, prizes (name, description, color, icon))
+      spins (id, spun_at, is_winner, prizes (name))
     `, { count: "exact" })
     .eq("tenant_id", TENANT_ID)
     .order("created_at", { ascending: false })
