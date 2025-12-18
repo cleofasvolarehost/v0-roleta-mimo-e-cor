@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X, ChevronLeft, ChevronRight } from "lucide-react" // Adicionado X icon
+import { Power, PowerOff, LogOut, RefreshCw, Trophy, Home, Trash2, Download, X, ChevronLeft, ChevronRight, Phone, Gift } from "lucide-react" // Adicionado X icon
 import CampaignTimer from "@/components/campaign-timer" // Import da nova função
 
 interface AdminDashboardProps {
@@ -431,32 +431,64 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-border">
-              <CardHeader>
-                <CardTitle className="text-sm text-muted">Ganhador</CardTitle>
+            <Card className="border-2 border-border overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-green-500 to-emerald-600 text-white pb-8">
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-yellow-300" />
+                    Ganhador da Campanha
+                </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0 relative">
                 {stats.winner ? (
-                  <div className="space-y-3">
-                    <p className="text-2xl font-bold text-green-600">🎉 {stats.winner.players.name}</p>
-                    <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
-                      <p className="text-sm text-muted mb-1">Telefone para contato:</p>
-                      <p className="text-xl font-mono font-bold text-green-700 dark:text-green-400">
-                        {stats.winner.players.phone}
-                      </p>
+                  <div className="space-y-4 -mt-4 bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-zinc-700">
+                    <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Parabéns para</p>
+                        <p className="text-2xl font-black text-gray-900 dark:text-white leading-tight">
+                            {stats.winner.players.name}
+                        </p>
                     </div>
-                    <p className="text-sm text-muted">R$ 50 em Vale Compra</p>
-                    <div className="pt-2 border-t border-border">
-                      <p className="text-xs text-muted mb-2">📞 Próximos passos:</p>
-                      <ol className="text-xs text-muted space-y-1 list-decimal list-inside">
-                        <li>Ligue para o ganhador no telefone acima</li>
-                        <li>Informe sobre o prêmio de R$ 50</li>
-                        <li>Compartilhe o link da página do ganhador</li>
-                      </ol>
+                    
+                    <div className="p-4 bg-gray-50 dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 flex items-center gap-3">
+                      <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-full">
+                          <Phone className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Telefone para contato</p>
+                          <p className="text-xl font-mono font-bold text-gray-800 dark:text-gray-200 tracking-wide">
+                            {stats.winner.players.phone}
+                          </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/10 p-3 rounded-lg">
+                        <Gift className="w-5 h-5" />
+                        <span className="font-bold">Prêmio: R$ 50 em Vale Compras</span>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-100 dark:border-zinc-700">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-3">Próximos passos</p>
+                      <ul className="space-y-2">
+                        {[
+                            "Ligue para o ganhador",
+                            "Informe sobre o prêmio",
+                            "Combine a retirada"
+                        ].map((step, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
+                                    {i + 1}
+                                </div>
+                                {step}
+                            </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xl text-muted">Ainda não há ganhador</p>
+                  <div className="text-center py-10">
+                    <Trophy className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-xl text-gray-400 font-medium">Ainda não há ganhador</p>
+                    <p className="text-sm text-gray-400">O sorteio ainda não foi realizado.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
