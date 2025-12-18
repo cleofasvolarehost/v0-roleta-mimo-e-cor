@@ -1052,40 +1052,57 @@ export async function exportParticipantsCSV(campaignId?: string, token?: string)
     targetCampaignId = latestCampaign.id
   }
 
-  // Buscar todos os participantes da campanha
-  const { data: spins, error } = await supabase
-    .from("spins")
+  // Buscar detalhes da campanha para obter a data de início
+  const { data: campaignData } = await supabase
+    .from("campaigns")
+    .select("started_at")
+    .eq("tenant_id", TENANT_ID)
+    .eq("id", targetCampaignId)
+    .single()
+
+  // Buscar todos os participantes (Players) ao invés de apenas Spins
+  // Isso garante que quem se cadastrou mas não girou (fantasmas) também apareça no CSV
+  let query = supabase
+    .from("players")
     .select(
       `
-      spun_at,
-      is_winner,
-      players (
-        name,
-        phone
+      name,
+      phone,
+      created_at,
+      spins (
+        is_winner
       )
-    `,
+    `
     )
     .eq("tenant_id", TENANT_ID)
-    .eq("campaign_id", targetCampaignId)
-    .order("spun_at", { ascending: false })
+    .order("created_at", { ascending: false })
+
+  if (campaignData?.started_at) {
+    query = query.gte("created_at", campaignData.started_at)
+  }
+
+  const { data: players, error } = await query
 
   if (error) {
     console.log("[v0] Erro ao buscar participantes:", error)
     return { error: "Erro ao buscar participantes: " + error.message }
   }
 
-  if (!spins || spins.length === 0) {
+  if (!players || players.length === 0) {
     return { error: "Nenhum participante nesta campanha" }
   }
 
   // Criar CSV com BOM para compatibilidade com Excel
   const csvHeader = "\uFEFFNome,Telefone,Data/Hora,Ganhou\n"
-  const csvRows = spins
-    .map((spin: any) => {
-      const name = spin.players?.name || "N/A"
-      const phone = spin.players?.phone || "N/A"
-      const date = new Date(spin.spun_at).toLocaleString("pt-BR")
-      const won = spin.is_winner ? "Sim" : "Não"
+  const csvRows = players
+    .map((player: any) => {
+      const name = player.name || "N/A"
+      const phone = player.phone || "N/A"
+      const date = new Date(player.created_at).toLocaleString("pt-BR")
+      
+      // Verifica se algum spin desse player foi vencedor
+      const isWinner = player.spins && player.spins.some((s: any) => s.is_winner)
+      const won = isWinner ? "Sim" : "Não"
 
       return `"${name}","${phone}","${date}","${won}"`
     })
@@ -1093,12 +1110,12 @@ export async function exportParticipantsCSV(campaignId?: string, token?: string)
 
   const csvContent = csvHeader + csvRows
 
-  console.log("[v0] CSV gerado com", spins.length, "participantes")
+  console.log("[v0] CSV gerado com", players.length, "participantes")
 
   return {
     success: true,
     csv: csvContent,
-    totalParticipants: spins.length,
+    totalParticipants: players.length,
   }
 }
 
