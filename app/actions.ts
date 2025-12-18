@@ -1106,3 +1106,48 @@ export async function deleteParticipant(playerId: string, token?: string) {
   console.log("[v0] Participante deletado com sucesso!")
   return { success: true, message: "Participante removido com sucesso!" }
 }
+
+export async function generateTestParticipants(token?: string) {
+  console.log("[v0] Gerando participantes de teste...")
+
+  const authCheck = await checkAdminAuth(token)
+  if (!authCheck.isAuthenticated) {
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+  const ipAddress = "127.0.0.1"
+  const userAgent = "Test Generator"
+
+  const testNames = [
+    "Ana Silva", "Carlos Oliveira", "Mariana Santos", "João Souza", 
+    "Fernanda Lima", "Pedro Rocha", "Beatriz Costa", "Lucas Pereira", 
+    "Juliana Martins", "Rafael Alves"
+  ]
+
+  let createdCount = 0
+
+  for (const name of testNames) {
+    const randomPhone = `(11) 9${Math.floor(Math.random() * 90000000 + 10000000)}`
+    
+    // Tenta criar player
+    const { error } = await supabase
+      .from("players")
+      .insert({
+        tenant_id: TENANT_ID,
+        name: name,
+        phone: randomPhone,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+      })
+    
+    if (!error) createdCount++
+  }
+
+  // Garantir que temos uma campanha ativa para associar, se não criar spin
+  // Na verdade, para o sorteio funcionar com a nova lógica, BASTA ter o player criado!
+  // A lógica nova busca players criados >= campaign.started_at.
+  // Então precisamos garantir que os players tenham created_at RECENTE (o que já vai ter).
+
+  return { success: true, message: `${createdCount} participantes de teste gerados com sucesso!` }
+}

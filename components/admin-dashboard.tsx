@@ -10,6 +10,7 @@ import {
   deleteParticipant, // Import da nova função
   exportParticipantsCSV, // Import da função exportParticipantsCSV
   getSpinHistory, // Import da função getSpinHistory
+  generateTestParticipants, // Import da função de teste
 } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -244,6 +245,25 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
       window.location.reload()
     }
 
+    setLoading(false)
+  }
+
+  const handleGenerateTest = async () => {
+    if (!stats.campaign?.is_active) {
+        alert("Ative a campanha primeiro para gerar participantes!")
+        return
+    }
+    
+    setLoading(true)
+    const token = getAuthToken()
+    const result = await generateTestParticipants(token)
+    
+    if (result.error) {
+      alert("Erro: " + result.error)
+    } else {
+      alert("✅ " + result.message)
+      window.location.reload()
+    }
     setLoading(false)
   }
 
@@ -603,6 +623,18 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
               )}
             </CardContent>
           </Card>
+          {/* Ferramentas de Teste */}
+          <div className="flex justify-center mt-8 pb-12">
+            <Button 
+                variant="outline" 
+                onClick={handleGenerateTest} 
+                disabled={loading || !isActive}
+                className="gap-2 text-purple-600 border-purple-200 hover:bg-purple-50"
+            >
+                <RefreshCw className="w-4 h-4" />
+                Gerar 10 Participantes de Teste
+            </Button>
+          </div>
         </div>
       </main>
     </div>
