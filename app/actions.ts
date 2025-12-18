@@ -635,11 +635,14 @@ export async function getAllWinners() {
         .eq("is_winner", true)
         .maybeSingle()
 
+      // Buscar o total de participantes REAIS no banco de dados para exibir corretamente
+      // (Isso corrige o problema de exibir apenas 2 pessoas quando foram 17 restaurados)
       const { count: totalParticipants } = await supabase
-        .from("spins")
+        .from("players")
         .select("*", { count: "exact", head: true })
         .eq("tenant_id", TENANT_ID)
-        .eq("campaign_id", campaign.id)
+        // Se a campanha tiver data de inicio, usamos ela como corte. Se não, pega todos.
+        .gte("created_at", campaign.started_at || "2024-01-01") 
 
       return {
         campaign,
