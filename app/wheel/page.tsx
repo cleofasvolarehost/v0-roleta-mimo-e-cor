@@ -67,14 +67,28 @@ export default function WheelPage() {
   }
 
   const handleSpin = async (prizeId: string): Promise<{ isWinner: boolean; prize: Prize }> => {
-    if (!player) return { isWinner: false, prize: prizes[0] }
+    const dummyPrize: Prize = { id: 'dummy', name: 'R$ 50', description: null, probability: 100, color: '#FFD700', icon: null }
+    const currentPrize = prizes.length > 0 ? prizes[0] : dummyPrize
 
-    const result = await recordSpin(player.id, prizeId, deviceFingerprint)
+    if (!player) return { isWinner: false, prize: currentPrize }
+
+    // Se for dummy, não tentar gravar no banco (vai dar erro de UUID)
+    // A menos que a gente queira tratar isso no backend. 
+    // Por enquanto, vamos assumir que se é dummy, é só visual ou erro.
+    
+    let result;
+    if (prizeId === 'dummy') {
+        console.log("[v0] Girando com prêmio dummy (sem gravação no banco)")
+        // Simular um resultado não-vencedor para evitar erros de banco
+        result = { error: null, isWinner: false } 
+    } else {
+        result = await recordSpin(player.id, prizeId, deviceFingerprint)
+    }
 
     if (result.error) {
       setError(result.error)
       setHasSpun(true)
-      return { isWinner: false, prize: prizes[0] }
+      return { isWinner: false, prize: currentPrize }
     }
 
     setHasSpun(true)
@@ -89,11 +103,11 @@ export default function WheelPage() {
 
     setResult({
       isWinner: result.isWinner || false,
-      prize: prizes[0],
+      prize: currentPrize,
       message: randomMessage,
     })
 
-    return { isWinner: result.isWinner || false, prize: prizes[0] }
+    return { isWinner: result.isWinner || false, prize: currentPrize }
   }
 
   if (loading) {
