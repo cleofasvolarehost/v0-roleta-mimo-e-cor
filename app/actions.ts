@@ -68,6 +68,8 @@ export async function registerPlayer(formData: {
   }
 
   // Verificar se o dispositivo já foi usado (bloqueio por fingerprint)
+  // DESATIVADO TEMPORARIAMENTE: Estava bloqueando usuários legítimos ou gerando falsos positivos.
+  /* 
   if (formData.deviceFingerprint) {
     const { data: existingByFingerprint } = await supabase
       .from("players")
@@ -82,6 +84,7 @@ export async function registerPlayer(formData: {
       return { error: "Este dispositivo já foi usado para participar do sorteio!" }
     }
   }
+  */
 
   const { data, error } = await supabase
     .from("players")
