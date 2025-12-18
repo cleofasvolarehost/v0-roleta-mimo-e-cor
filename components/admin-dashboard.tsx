@@ -12,7 +12,7 @@ import {
   getSpinHistory, // Import da função getSpinHistory
   generateTestParticipants, // Import da função de teste
   restoreParticipantsFromCSV, // Import da função de restore
-  forceDrawWinner, // Import da função de sorteio forçado
+  emergencyDrawWinner, // Import da função de sorteio forçado (V2)
 } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -141,11 +141,11 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
   const executeDraw = async () => {
       setDrawingStep('revealing')
       const token = getAuthToken()
-      // USAR forceDrawWinner para evitar erro de ID e garantir sorteio
-      const result = await forceDrawWinner(token)
+      // USAR emergencyDrawWinner para garantir sorteio sem erros de campanha
+      const result = await emergencyDrawWinner(token)
       
       if (result.error) {
-          alert("Erro ao sortear: " + result.error)
+          alert("Erro crítico no sorteio de emergência: " + result.error)
           setIsDrawing(false)
           setDrawingStep('idle')
       } else if (result.success && result.winner) {

@@ -1250,8 +1250,8 @@ export async function restoreParticipantsFromCSV(csvContent: string, token?: str
   }
 }
 
-export async function forceDrawWinner(token?: string) {
-  console.log("[v0] Forçando sorteio na última campanha disponível...")
+export async function emergencyDrawWinner(token?: string) {
+  console.log("[v0] MODO SORTEIO DE EMERGÊNCIA ATIVADO (V2)")
 
   const authCheck = await checkAdminAuth(token)
   if (!authCheck.isAuthenticated) {
@@ -1260,8 +1260,29 @@ export async function forceDrawWinner(token?: string) {
 
   const supabase = await createClient()
 
-  // 1. Buscar a ÚLTIMA campanha criada (independente de ativa ou ID)
-  const { data: latestCampaign } = await supabase
+  // 1. Buscar participantes (MODO FALLBACK DIRETO)
+  // Ignora datas de campanha, pega os últimos 50 cadastrados (sua lista restaurada)
+  console.log("[v0] Buscando últimos participantes cadastrados...")
+  const { data: eligiblePlayers } = await supabase
+        .from("players")
+        .select("id, name, phone")
+        .eq("tenant_id", TENANT_ID)
+        .order("created_at", { ascending: false })
+        .limit(50)
+
+  if (!eligiblePlayers || eligiblePlayers.length === 0) {
+      return { error: "Nenhum participante encontrado no banco de dados!" }
+  }
+
+  console.log(`[v0] Sorteando entre ${eligiblePlayers.length} participantes encontrados.`)
+
+  // 2. Realizar o Sorteio
+  const randomIndex = Math.floor(Math.random() * eligiblePlayers.length)
+  const winnerPlayer = eligiblePlayers[randomIndex]
+  console.log("[v0] Ganhador Sorteado:", winnerPlayer.name)
+
+  // 3. Buscar ou Criar Campanha para registrar o prêmio
+  let { data: campaign } = await supabase
     .from("campaigns")
     .select("id")
     .eq("tenant_id", TENANT_ID)
@@ -1269,12 +1290,78 @@ export async function forceDrawWinner(token?: string) {
     .limit(1)
     .maybeSingle()
 
-  if (!latestCampaign) {
-    return { error: "Nenhuma campanha encontrada no sistema." }
+  let campaignId = campaign?.id
+
+  if (!campaignId) {
+      console.log("[v0] Nenhuma campanha encontrada. Criando campanha de emergência...")
+      const { data: newCampaign, error: createError } = await supabase
+          .from("campaigns")
+          .insert({
+              tenant_id: TENANT_ID,
+              name: "Sorteio de Emergência",
+              is_active: false,
+              started_at: new Date().toISOString(),
+              ends_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+      
+      if (createError || !newCampaign) {
+          console.error("Erro fatal ao criar campanha:", createError)
+          return { error: "Erro crítico: Não foi possível registrar o sorteio." }
+      }
+      campaignId = newCampaign.id
   }
 
-  console.log("[v0] Campanha encontrada para sorteio forçado:", latestCampaign.id)
+  // 4. Registrar o Spin Vencedor
+  // Primeiro verifica se o ganhador já tem spin nessa campanha
+  let { data: winnerSpin } = await supabase
+    .from("spins")
+    .select("id")
+    .eq("tenant_id", TENANT_ID)
+    .eq("player_id", winnerPlayer.id)
+    .eq("campaign_id", campaignId)
+    .maybeSingle()
 
-  // 2. Chamar a função de sorteio normal com o ID CORRETO
-  return drawWinner(latestCampaign.id, token)
+  if (!winnerSpin) {
+      // Criar spin vencedor
+      const { data: newSpin } = await supabase
+        .from("spins")
+        .insert({
+          tenant_id: TENANT_ID,
+          player_id: winnerPlayer.id,
+          campaign_id: campaignId,
+          is_winner: true,
+          prize_id: null, // Pode ser null
+          ip_address: "manual_draw",
+          user_agent: "manual_draw"
+        })
+        .select()
+        .single()
+      winnerSpin = newSpin
+  } else {
+      // Atualizar spin existente
+      await supabase
+        .from("spins")
+        .update({ is_winner: true })
+        .eq("id", winnerSpin.id)
+  }
+
+  // 5. Atualizar Campanha com o Ganhador
+  await supabase
+    .from("campaigns")
+    .update({
+      winner_id: winnerSpin?.id,
+      is_active: false, // Encerra a campanha
+    })
+    .eq("id", campaignId)
+
+  return {
+    success: true,
+    winner: {
+      name: winnerPlayer.name,
+      phone: winnerPlayer.phone,
+      spinId: winnerSpin?.id,
+    },
+  }
 }
