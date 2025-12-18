@@ -12,6 +12,7 @@ import {
   getSpinHistory, // Import da função getSpinHistory
   generateTestParticipants, // Import da função de teste
   restoreParticipantsFromCSV, // Import da função de restore
+  forceDrawWinner, // Import da função de sorteio forçado
 } from "@/app/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,6 +37,13 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(Math.ceil(initialStats.totalSpins / 10))
+  
+  // Estados para o Sorteio com Suspense
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [countdown, setCountdown] = useState(10)
+  const [drawingStep, setDrawingStep] = useState<'idle' | 'counting' | 'revealing' | 'finished'>('idle')
+  const [winnerResult, setWinnerResult] = useState<any>(null)
+
   const itemsPerPage = 10
   const router = useRouter()
 
@@ -130,40 +138,58 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
     window.location.reload()
   }
 
+  const executeDraw = async () => {
+      setDrawingStep('revealing')
+      const token = getAuthToken()
+      // USAR forceDrawWinner para evitar erro de ID e garantir sorteio
+      const result = await forceDrawWinner(token)
+      
+      if (result.error) {
+          alert("Erro ao sortear: " + result.error)
+          setIsDrawing(false)
+          setDrawingStep('idle')
+      } else if (result.success && result.winner) {
+          // Pequeno delay para "processando"
+          setTimeout(() => {
+             setWinnerResult(result.winner)
+             setDrawingStep('finished')
+          }, 2000)
+      }
+  }
+
   const handleDrawWinner = async () => {
-    if (!stats.campaign) {
-      alert("Nenhuma campanha ativa")
-      return
-    }
-
-    if (stats.campaign.winner_id) {
-      alert("Esta campanha já tem um ganhador!")
-      return
-    }
-
     if (stats.totalSpins === 0) {
       alert("Nenhum participante para sortear!")
       return
     }
 
+    if (stats.campaign?.winner_id) {
+      alert("Esta campanha já tem um ganhador!")
+      return
+    }
+
     const confirm = window.confirm(
-      `Tem certeza que deseja sortear o ganhador agora? Há ${stats.totalSpins} participante(s) concorrendo.`,
+      `Tem certeza que deseja iniciar o Sorteio?\n\nSerá feita uma contagem regressiva de 10 segundos! Prepare a câmera! 🎥`,
     )
 
     if (!confirm) return
 
-    setLoading(true)
-    const token = getAuthToken()
-    const result = await drawWinner(stats.campaign.id, token)
-
-    if (result.error) {
-      alert("Erro ao sortear: " + result.error)
-    } else if (result.success && result.winner) {
-      alert(`🎉 Ganhador sorteado: ${result.winner.name}!`)
-      window.location.reload()
-    }
-
-    setLoading(false)
+    // Iniciar Sequência de Suspense
+    setIsDrawing(true)
+    setDrawingStep('counting')
+    setCountdown(10)
+    
+    // Iniciar contagem regressiva
+    const timer = setInterval(() => {
+        setCountdown((prev) => {
+            if (prev <= 1) {
+                clearInterval(timer)
+                executeDraw()
+                return 0
+            }
+            return prev - 1
+        })
+    }, 1000)
   }
 
   const handleClearDatabase = async () => {
@@ -670,6 +696,57 @@ export function AdminDashboard({ stats: initialStats, spins: initialSpins }: Adm
           </div>
         </div>
       </main>
+
+      {/* Modal de Suspense do Sorteio */}
+      {isDrawing && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white overflow-hidden">
+          
+          {drawingStep === 'counting' && (
+            <div className="text-center">
+              <p className="text-2xl md:text-4xl mb-8 text-gray-400 uppercase tracking-widest font-bold animate-pulse">O sorteio vai começar em...</p>
+              <div className="text-[12rem] md:text-[20rem] font-black leading-none text-yellow-500 font-mono transition-all scale-110">
+                {countdown}
+              </div>
+            </div>
+          )}
+
+          {drawingStep === 'revealing' && (
+            <div className="text-center space-y-8">
+               <div className="relative">
+                 <div className="absolute inset-0 bg-yellow-500 blur-3xl opacity-20 animate-pulse"></div>
+                 <RefreshCw className="w-32 h-32 text-yellow-500 mx-auto animate-spin duration-700" />
+               </div>
+               <p className="text-4xl md:text-6xl font-bold animate-bounce text-yellow-100">Sorteando...</p>
+            </div>
+          )}
+
+          {drawingStep === 'finished' && winnerResult && (
+            <div className="text-center p-8 md:p-16 bg-gradient-to-br from-zinc-900/90 to-black/90 backdrop-blur-md rounded-3xl border-4 border-yellow-400 max-w-5xl mx-4 shadow-[0_0_100px_rgba(234,179,8,0.5)] animate-in zoom-in duration-700">
+               <div className="mb-8">
+                 <Trophy className="w-32 h-32 md:w-48 md:h-48 text-yellow-400 mx-auto animate-bounce drop-shadow-lg" />
+               </div>
+               <p className="text-2xl md:text-4xl text-gray-300 uppercase font-bold mb-6 tracking-widest">🎉 Parabéns! O Ganhador é 🎉</p>
+               <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white mb-8 break-words leading-tight drop-shadow-md">
+                 {winnerResult.name}
+               </h1>
+               <div className="bg-green-600 inline-block px-8 py-4 md:px-12 md:py-6 rounded-full text-3xl md:text-5xl font-mono font-bold shadow-xl transform hover:scale-105 transition-transform">
+                 {winnerResult.phone}
+               </div>
+               
+               <div className="mt-16">
+                 <Button 
+                   size="lg" 
+                   onClick={() => window.location.reload()}
+                   className="bg-white text-black hover:bg-gray-200 text-xl px-12 py-8 h-auto rounded-2xl font-bold shadow-2xl"
+                 >
+                   <X className="w-6 h-6 mr-2" />
+                   Fechar
+                 </Button>
+               </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

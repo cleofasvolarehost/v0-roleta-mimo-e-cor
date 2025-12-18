@@ -1244,8 +1244,37 @@ export async function restoreParticipantsFromCSV(csvContent: string, token?: str
     }
   }
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     message: `${restoredCount} participantes restaurados com sucesso! (${errorCount} falhas/duplicados)` 
   }
+}
+
+export async function forceDrawWinner(token?: string) {
+  console.log("[v0] Forçando sorteio na última campanha disponível...")
+
+  const authCheck = await checkAdminAuth(token)
+  if (!authCheck.isAuthenticated) {
+    return { error: "Não autorizado" }
+  }
+
+  const supabase = await createClient()
+
+  // 1. Buscar a ÚLTIMA campanha criada (independente de ativa ou ID)
+  const { data: latestCampaign } = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("tenant_id", TENANT_ID)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!latestCampaign) {
+    return { error: "Nenhuma campanha encontrada no sistema." }
+  }
+
+  console.log("[v0] Campanha encontrada para sorteio forçado:", latestCampaign.id)
+
+  // 2. Chamar a função de sorteio normal com o ID CORRETO
+  return drawWinner(latestCampaign.id, token)
 }
